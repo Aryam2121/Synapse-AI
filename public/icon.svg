@@ -1,0 +1,26 @@
+<svg width="512" height="512" viewBox="0 0 512 512" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <rect width="512" height="512" rx="128" fill="url(#gradient)"/>
+  
+  <!-- Neural Network Nodes -->
+  <circle cx="256" cy="150" r="30" fill="white" opacity="0.9"/>
+  <circle cx="180" cy="250" r="25" fill="white" opacity="0.8"/>
+  <circle cx="332" cy="250" r="25" fill="white" opacity="0.8"/>
+  <circle cx="256" cy="350" r="30" fill="white" opacity="0.9"/>
+  
+  <!-- Connecting Lines -->
+  <line x1="256" y1="150" x2="180" y2="250" stroke="white" stroke-width="3" opacity="0.6"/>
+  <line x1="256" y1="150" x2="332" y2="250" stroke="white" stroke-width="3" opacity="0.6"/>
+  <line x1="180" y1="250" x2="256" y2="350" stroke="white" stroke-width="3" opacity="0.6"/>
+  <line x1="332" y1="250" x2="256" y2="350" stroke="white" stroke-width="3" opacity="0.6"/>
+  
+  <!-- Central "S" for Synapse -->
+  <text x="256" y="270" font-family="Arial, sans-serif" font-size="120" font-weight="bold" fill="white" text-anchor="middle" dominant-baseline="middle">S</text>
+  
+  <!-- Gradient Definition -->
+  <defs>
+    <linearGradient id="gradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#667eea;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#764ba2;stop-opacity:1" />
+    </linearGradient>
+  </defs>
+</svg>
