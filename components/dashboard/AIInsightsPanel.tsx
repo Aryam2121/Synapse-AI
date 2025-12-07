@@ -54,8 +54,8 @@ export function AIInsightsPanel() {
         }),
       ])
 
-      if (recsRes.ok) {
-        const data = await recsRes.json()
+      if (recommendationsRes.ok) {
+        const data = await recommendationsRes.json()
         setRecommendations(data.recommendations)
       }
       
@@ -64,13 +64,13 @@ export function AIInsightsPanel() {
         setUsagePatterns(data)
       }
 
-      if (summaryRes.ok) {
-        const data = await summaryRes.json()
+      if (summariesRes.ok) {
+        const data = await summariesRes.json()
         setSummary(data)
       }
 
-      if (predsRes.ok) {
-        const data = await predsRes.json()
+      if (predictiveRes.ok) {
+        const data = await predictiveRes.json()
         setPredictions(data)
       }
 
