@@ -69,8 +69,9 @@ export function ChatInterface() {
       }
 
       // Call backend API
-      console.log('Sending chat request to backend...')
-      const response = await fetch('http://localhost:8000/api/chat', {
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
+      console.log('Sending chat request to backend:', apiUrl)
+      const response = await fetch(`${apiUrl}/api/chat`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
