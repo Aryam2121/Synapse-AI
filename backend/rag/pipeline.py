@@ -10,6 +10,7 @@ from langchain_community.document_loaders import (
     UnstructuredWordDocumentLoader,
     UnstructuredMarkdownLoader
 )
+from pinecone import Pinecone as PineconeClient, ServerlessSpec
 import os
 import uuid
 from datetime import datetime
@@ -69,25 +70,29 @@ class RAGPipeline:
         
         if vector_db_type == "pinecone":
             pinecone_key = os.getenv("PINECONE_API_KEY")
-            pinecone_env = os.getenv("PINECONE_ENVIRONMENT")
             
-            if pinecone_key and pinecone_env:
-                pinecone.init(
-                    api_key=pinecone_key,
-                    environment=pinecone_env
-                )
+            if pinecone_key:
+                # Initialize Pinecone client (new v6+ API)
+                pc = PineconeClient(api_key=pinecone_key)
                 
                 index_name = "universal-ai"
-                if index_name not in pinecone.list_indexes():
-                    pinecone.create_index(
+                existing_indexes = [idx.name for idx in pc.list_indexes()]
+                
+                if index_name not in existing_indexes:
+                    pc.create_index(
                         name=index_name,
                         dimension=1536,  # OpenAI embedding dimension
-                        metric="cosine"
+                        metric="cosine",
+                        spec=ServerlessSpec(cloud="aws", region="us-east-1")
                     )
                 
-                return Pinecone.from_existing_index(
-                    index_name=index_name,
-                    embedding=self.embeddings
+                # Get the index
+                index = pc.Index(index_name)
+                
+                return Pinecone(
+                    index=index,
+                    embedding=self.embeddings,
+                    text_key="text"
                 )
         
         # Default to Chroma (local vector DB)
