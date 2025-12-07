@@ -10,7 +10,6 @@ from langchain_community.document_loaders import (
     UnstructuredWordDocumentLoader,
     UnstructuredMarkdownLoader
 )
-import pinecone
 import os
 import uuid
 from datetime import datetime
