@@ -44,6 +44,13 @@ app = FastAPI(
     version="1.0.0"
 )
 
+# Startup event to initialize database
+@app.on_event("startup")
+async def startup_event():
+    logger.info("Initializing database...")
+    await init_db()
+    logger.info("Database initialized successfully")
+
 # Include authentication routes
 app.include_router(auth_router)
 app.include_router(tasks_router)
@@ -159,13 +166,17 @@ async def chat(
         # Get agent
         agent = agent_router.get_agent(agent_type)
         
-        # Process with RAG
-        relevant_docs = await rag_pipeline.search(request.message, k=3)
+        # Process with RAG (handle empty results gracefully)
+        relevant_docs = []
+        try:
+            relevant_docs = await rag_pipeline.search(request.message, k=3)
+        except Exception as rag_error:
+            logger.warning(f"RAG search failed: {str(rag_error)}, continuing without context")
         
         # Generate response
         response = await agent.process(
             message=request.message,
-            context=relevant_docs,
+            context=relevant_docs if relevant_docs else [],
             conversation_id=request.conversation_id
         )
         
@@ -178,6 +189,8 @@ async def chat(
         
     except Exception as e:
         logger.error(f"Error in chat endpoint: {str(e)}")
+        import traceback
+        logger.error(traceback.format_exc())
         raise HTTPException(status_code=500, detail=str(e))
 
 # Stream Chat Endpoint (for real-time streaming)

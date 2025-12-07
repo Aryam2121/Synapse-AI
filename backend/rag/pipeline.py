@@ -1,5 +1,6 @@
 from typing import List, Dict, Any, Optional
 from langchain_openai import OpenAIEmbeddings
+from langchain_community.embeddings import OllamaEmbeddings
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_community.vectorstores import Pinecone, Chroma
 from langchain_community.document_loaders import (
@@ -23,9 +24,22 @@ class RAGPipeline:
     """
     
     def __init__(self):
-        self.embeddings = OpenAIEmbeddings(
-            openai_api_key=os.getenv("OPENAI_API_KEY")
-        )
+        # Use Ollama or OpenAI embeddings based on configuration
+        use_ollama = os.getenv("USE_OLLAMA", "true").lower() == "true"
+        
+        if use_ollama:
+            ollama_base_url = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
+            ollama_model = os.getenv("OLLAMA_MODEL", "llama3.1")
+            logger.info(f"Using Ollama embeddings with model: {ollama_model}")
+            self.embeddings = OllamaEmbeddings(
+                base_url=ollama_base_url,
+                model=ollama_model
+            )
+        else:
+            logger.info("Using OpenAI embeddings")
+            self.embeddings = OpenAIEmbeddings(
+                openai_api_key=os.getenv("OPENAI_API_KEY")
+            )
         
         self.text_splitter = RecursiveCharacterTextSplitter(
             chunk_size=1000,

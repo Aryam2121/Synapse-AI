@@ -8,7 +8,7 @@ from datetime import datetime
 
 class UserRegister(BaseModel):
     email: EmailStr
-    password: str = Field(..., min_length=8, max_length=100)
+    password: str = Field(..., min_length=8, max_length=72)
     name: str = Field(..., min_length=2, max_length=100)
 
 

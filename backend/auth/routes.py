@@ -17,38 +17,49 @@ router = APIRouter(prefix="/api/auth", tags=["authentication"])
 @router.post("/register", response_model=AuthResponse, status_code=status.HTTP_201_CREATED)
 async def register(user_data: UserRegister, db: AsyncSession = Depends(get_db)):
     """Register a new user"""
-    
-    # Check if user already exists
-    result = await db.execute(select(User).where(User.email == user_data.email))
-    existing_user = result.scalar_one_or_none()
-    
-    if existing_user:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Email already registered"
+    try:
+        # Check if user already exists
+        result = await db.execute(select(User).where(User.email == user_data.email))
+        existing_user = result.scalar_one_or_none()
+        
+        if existing_user:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Email already registered"
+            )
+        
+        # Create new user
+        user = User(
+            id=str(uuid.uuid4()),
+            email=user_data.email,
+            password_hash=get_password_hash(user_data.password),
+            name=user_data.name,
+            is_active=True,
+            is_verified=False
         )
-    
-    # Create new user
-    user = User(
-        id=str(uuid.uuid4()),
-        email=user_data.email,
-        password_hash=get_password_hash(user_data.password),
-        name=user_data.name,
-        is_active=True,
-        is_verified=False
-    )
-    
-    db.add(user)
-    await db.commit()
-    await db.refresh(user)
-    
-    # Create access token
-    access_token = create_access_token(data={"sub": user.id})
-    
-    return AuthResponse(
-        user=UserResponse.model_validate(user),
-        token=Token(access_token=access_token)
-    )
+        
+        db.add(user)
+        await db.commit()
+        await db.refresh(user)
+        
+        # Create access token
+        access_token = create_access_token(data={"sub": user.id})
+        
+        return AuthResponse(
+            user=UserResponse.model_validate(user),
+            token=Token(access_token=access_token)
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        import traceback
+        print(f"Registration error: {str(e)}")
+        print(traceback.format_exc())
+        await db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Registration failed: {str(e)}"
+        )
 
 
 @router.post("/login", response_model=AuthResponse)
