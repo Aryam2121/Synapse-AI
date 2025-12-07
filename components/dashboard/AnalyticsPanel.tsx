@@ -61,8 +61,8 @@ export function AnalyticsPanel() {
         }),
       ])
 
-      if (analyticsRes.ok && timeSavedRes.ok) {
-        const analytics = await analyticsRes.json()
+      if (overviewRes.ok && timeSavedRes.ok) {
+        const analytics = await overviewRes.json()
         const timeSaved = await timeSavedRes.json()
         setAnalyticsData(analytics)
         setTimeSaved(timeSaved)
