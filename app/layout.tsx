@@ -11,11 +11,7 @@ export const metadata: Metadata = {
   description: 'Neural AI platform powered by RAG, LangChain, and multi-agent orchestration',
   keywords: ['AI', 'Synapse', 'Neural Network', 'RAG', 'LangChain', 'Productivity', 'Intelligence'],
   icons: {
-    icon: [
-      { url: '/favicon.ico' },
-      { url: '/icon.png', type: 'image/png', sizes: '512x512' },
-    ],
-    apple: '/apple-icon.png',
+    icon: '/favicon.svg',
   },
 }
 
