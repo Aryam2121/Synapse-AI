@@ -1,5 +1,6 @@
 from typing import Dict, Any, List, Optional, AsyncIterator
 from langchain_ollama import ChatOllama
+from langchain_groq import ChatGroq
 from langchain_core.messages import HumanMessage, SystemMessage, AIMessage
 import os
 import uuid
@@ -13,47 +14,44 @@ class BaseAgent:
         self.role = role
         self.system_prompt = system_prompt
         
-        # Initialize LLM - Use FREE Ollama by default!
-        api_key = os.getenv("OPENAI_API_KEY")
+        # Initialize LLM - Priority: Groq (free) > OpenAI > Ollama (local dev)
+        groq_api_key = os.getenv("GROQ_API_KEY")
+        openai_api_key = os.getenv("OPENAI_API_KEY")
         use_ollama = os.getenv("USE_OLLAMA", "true").lower() == "true"
         
-        if use_ollama and not api_key:
-            # FREE: Use Ollama (local, no API key needed)
+        if groq_api_key:
+            # FREE Cloud: Use Groq (recommended for production)
+            model = os.getenv("GROQ_MODEL", "llama-3.3-70b-versatile")
+            self.llm = ChatGroq(
+                model=model,
+                temperature=0.7,
+                api_key=groq_api_key
+            )
+            print(f"✓ Using FREE Groq Cloud model: {model}")
+        elif openai_api_key:
+            # Paid: Use OpenAI if key provided
+            from langchain_openai import ChatOpenAI
+            self.llm = ChatOpenAI(
+                model="gpt-4-turbo-preview",
+                temperature=0.7,
+                api_key=openai_api_key
+            )
+            print("✓ Using OpenAI")
+        elif use_ollama:
+            # Local Dev: Use Ollama (local, no API key needed)
             model = os.getenv("OLLAMA_MODEL", "llama3.1")
             self.llm = ChatOllama(
                 model=model,
                 temperature=0.7,
                 base_url=os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
             )
-            print(f"✓ Using FREE Ollama model: {model}")
-        elif api_key:
-            # Paid: Use OpenAI if key provided
-            from langchain_openai import ChatOpenAI
-            self.llm = ChatOpenAI(
-                model="gpt-4-turbo-preview",
-                temperature=0.7,
-                api_key=api_key
-            )
-            print("✓ Using OpenAI")
+            print(f"✓ Using LOCAL Ollama model: {model}")
         else:
-            # Fallback: Try Anthropic
-            anthropic_key = os.getenv("ANTHROPIC_API_KEY")
-            if anthropic_key:
-                from langchain_anthropic import ChatAnthropic
-                self.llm = ChatAnthropic(
-                    model="claude-3-opus-20240229",
-                    api_key=anthropic_key
-                )
-                print("✓ Using Anthropic Claude")
-            else:
-                # Default to Ollama if nothing else works
-                model = os.getenv("OLLAMA_MODEL", "llama3.1")
-                self.llm = ChatOllama(
-                    model=model,
-                    temperature=0.7,
-                    base_url=os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
-                )
-                print(f"✓ Using FREE Ollama model: {model} (default)")
+            # Fallback error
+            raise ValueError(
+                "No AI provider configured! Set GROQ_API_KEY (free) or OPENAI_API_KEY, "
+                "or set USE_OLLAMA=true for local development"
+            )
         
         self.conversation_history: Dict[str, List[Any]] = {}
     

@@ -30,8 +30,29 @@ This isn't just another AI chatbot. **Synapse AI** is a complete, production-rea
 
 - Node.js 18+ 
 - Python 3.11+
-- **100% FREE Option**: Ollama (Recommended!) - [Setup Guide](OLLAMA_SETUP.md)
-- **OR** Paid: OpenAI/Anthropic API Key
+
+### AI Provider Options
+
+**Choose ONE (all work great!):**
+
+1. **🚀 Groq** (Recommended for Production)
+   - ✅ 100% FREE - No credit card required
+   - ✅ Super FAST - Fastest inference speed
+   - ✅ Cloud-hosted - No installation needed
+   - ✅ Perfect for deployment (Render/Vercel)
+   - 📖 [Groq Setup Guide](GROQ_SETUP.md)
+
+2. **💻 Ollama** (Best for Local Development)
+   - ✅ 100% FREE - Runs on your PC
+   - ✅ Private - No data sent to cloud
+   - ✅ No API limits
+   - ⚠️ Only for local use (can't deploy to Render)
+   - 📖 [Ollama Setup Guide](OLLAMA_SETUP.md)
+
+3. **💰 OpenAI** (Paid Alternative)
+   - ⚠️ Costs money per request
+   - ✅ GPT-4 quality
+   - ✅ Works everywhere
 
 ### Installation
 

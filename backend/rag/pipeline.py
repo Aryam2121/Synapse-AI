@@ -1,6 +1,7 @@
 from typing import List, Dict, Any, Optional
 from langchain_openai import OpenAIEmbeddings
 from langchain_community.embeddings import OllamaEmbeddings
+from langchain_groq import ChatGroq
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_community.vectorstores import Pinecone, Chroma
 from langchain_community.document_loaders import (
@@ -24,10 +25,19 @@ class RAGPipeline:
     """
     
     def __init__(self):
-        # Use Ollama or OpenAI embeddings based on configuration
+        # Use embeddings based on available providers
+        groq_api_key = os.getenv("GROQ_API_KEY")
+        openai_api_key = os.getenv("OPENAI_API_KEY")
         use_ollama = os.getenv("USE_OLLAMA", "true").lower() == "true"
         
-        if use_ollama:
+        # Note: Groq doesn't provide embeddings, so we use a simple fallback
+        # For production with Groq, you should use a separate embedding service
+        if openai_api_key:
+            logger.info("Using OpenAI embeddings")
+            self.embeddings = OpenAIEmbeddings(
+                openai_api_key=openai_api_key
+            )
+        elif use_ollama:
             ollama_base_url = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
             ollama_model = os.getenv("OLLAMA_MODEL", "llama3.1")
             logger.info(f"Using Ollama embeddings with model: {ollama_model}")
@@ -36,10 +46,10 @@ class RAGPipeline:
                 model=ollama_model
             )
         else:
-            logger.info("Using OpenAI embeddings")
-            self.embeddings = OpenAIEmbeddings(
-                openai_api_key=os.getenv("OPENAI_API_KEY")
-            )
+            # For Groq-only setup, use a lightweight alternative or disable RAG
+            logger.warning("No embeddings configured - RAG features will be limited")
+            # You could use HuggingFace embeddings or sentence-transformers here
+            self.embeddings = None
         
         self.text_splitter = RecursiveCharacterTextSplitter(
             chunk_size=1000,

@@ -69,6 +69,7 @@ export function ChatInterface() {
       }
 
       // Call backend API
+      console.log('Sending chat request to backend...')
       const response = await fetch('http://localhost:8000/api/chat', {
         method: 'POST',
         headers: {
@@ -80,8 +81,12 @@ export function ChatInterface() {
         }),
       })
 
+      console.log('Response status:', response.status)
+      
       if (!response.ok) {
-        throw new Error('Failed to get response')
+        const errorText = await response.text()
+        console.error('Backend error:', errorText)
+        throw new Error(`Failed to get response: ${response.status} - ${errorText}`)
       }
 
       const data = await response.json()
@@ -99,7 +104,7 @@ export function ChatInterface() {
       const errorMessage: Message = {
         id: (Date.now() + 1).toString(),
         role: 'assistant',
-        content: `❌ **Error:** ${error.message}\n\nPlease make sure:\n- Backend server is running\n- You're logged in\n- Ollama is installed and running`,
+        content: `❌ **Error:** ${error.message}\n\nPlease make sure:\n- Backend server is running\n- You're logged in\n- AI service is configured (Groq/Ollama)`,
         timestamp: new Date(),
         agent: 'System',
       }
