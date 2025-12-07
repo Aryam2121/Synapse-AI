@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { API_URL } from '@/lib/api-config'
 import { Folder, FileCode, Bug, Sparkles, Upload, Search } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -46,7 +47,7 @@ export function CodePanel() {
     
     try {
       const token = localStorage.getItem('auth_token')
-      const response = await fetch('http://localhost:8000/api/code/analyze', {
+      const response = await fetch(`${API_URL}/api/code/analyze`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

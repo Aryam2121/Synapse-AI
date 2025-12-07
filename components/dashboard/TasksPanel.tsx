@@ -72,7 +72,7 @@ export function TasksPanel() {
 
     try {
       const token = localStorage.getItem('auth_token')
-      const response = await fetch('http://localhost:8000/api/tasks', {
+      const response = await fetch(`${API_URL}/api/tasks`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -114,8 +114,8 @@ export function TasksPanel() {
 
     try {
       const token = localStorage.getItem('auth_token')
-      const response = await fetch(`http://localhost:8000/api/tasks/${id}`, {
-        method: 'PATCH',
+      const response = await fetch(`${API_URL}/api/tasks/${id}`, {
+        method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${token}`,
@@ -141,7 +141,7 @@ export function TasksPanel() {
   const handleDeleteTask = async (id: string) => {
     try {
       const token = localStorage.getItem('auth_token')
-      const response = await fetch(`http://localhost:8000/api/tasks/${id}`, {
+      const response = await fetch(`${API_URL}/api/tasks/${id}`, {
         method: 'DELETE',
         headers: {
           'Authorization': `Bearer ${token}`,

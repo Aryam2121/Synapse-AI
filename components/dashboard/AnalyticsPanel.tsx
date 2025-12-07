@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { API_URL } from '@/lib/api-config'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { BarChart3, TrendingUp, Clock, MessageSquare, FileText, Code } from 'lucide-react'
@@ -51,13 +52,13 @@ export function AnalyticsPanel() {
     try {
       const token = localStorage.getItem('auth_token')
       
-      const [analyticsRes, timeSavedRes] = await Promise.all([
-        fetch('http://localhost:8000/api/analytics/overview', {
-          headers: { Authorization: `Bearer ${token}` }
+      const [overviewRes, timeSavedRes] = await Promise.all([
+        fetch(`${API_URL}/api/analytics/overview`, {
+          headers: { Authorization: `Bearer ${token}` },
         }),
-        fetch('http://localhost:8000/api/analytics/time-saved', {
-          headers: { Authorization: `Bearer ${token}` }
-        })
+        fetch(`${API_URL}/api/analytics/time-saved`, {
+          headers: { Authorization: `Bearer ${token}` },
+        }),
       ])
 
       if (analyticsRes.ok && timeSavedRes.ok) {

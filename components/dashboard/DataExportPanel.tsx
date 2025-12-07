@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { API_URL } from '@/lib/api-config'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
@@ -94,7 +95,7 @@ export function DataExportPanel() {
     setIsExporting(true)
     try {
       const token = localStorage.getItem('auth_token')
-      const res = await fetch('http://localhost:8000/api/export/full-export', {
+      const res = await fetch(`${API_URL}/api/export/full-export`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

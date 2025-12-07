@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { API_URL } from '@/lib/api-config'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
@@ -59,10 +60,10 @@ export function VisualizationPanel() {
       const token = localStorage.getItem('token')
       
       const [dashRes, kpiRes] = await Promise.all([
-        fetch('http://localhost:8000/api/visualization/dashboard/overview', {
+        fetch(`${API_URL}/api/visualization/dashboard/overview`, {
           headers: { 'Authorization': `Bearer ${token}` }
         }),
-        fetch('http://localhost:8000/api/visualization/metrics/summary', {
+        fetch(`${API_URL}/api/visualization/metrics/summary`, {
           headers: { 'Authorization': `Bearer ${token}` }
         })
       ])

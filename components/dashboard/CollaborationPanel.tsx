@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { API_URL } from '@/lib/api-config'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -65,9 +66,9 @@ export function CollaborationPanel() {
       const headers = { Authorization: `Bearer ${token}` }
 
       const [workspacesRes, membersRes, mentionsRes] = await Promise.all([
-        fetch('http://localhost:8000/api/collaboration/workspaces', { headers }),
-        fetch('http://localhost:8000/api/collaboration/team-members', { headers }),
-        fetch('http://localhost:8000/api/collaboration/mentions', { headers })
+        fetch(`${API_URL}/api/collaboration/workspaces`, { headers }),
+        fetch(`${API_URL}/api/collaboration/team-members`, { headers }),
+        fetch(`${API_URL}/api/collaboration/mentions`, { headers })
       ])
 
       if (workspacesRes.ok) {
@@ -87,7 +88,7 @@ export function CollaborationPanel() {
   const fetchWorkspaceActivity = async (workspaceId: string) => {
     try {
       const token = localStorage.getItem('auth_token')
-      const res = await fetch(`http://localhost:8000/api/collaboration/workspaces/${workspaceId}/activity`, {
+      const res = await fetch(`${API_URL}/api/collaboration/workspaces/${workspaceId}/activity`, {
         headers: { Authorization: `Bearer ${token}` }
       })
 

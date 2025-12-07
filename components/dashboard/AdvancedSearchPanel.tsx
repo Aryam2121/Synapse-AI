@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { API_URL } from '@/lib/api-config'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
@@ -40,7 +41,7 @@ export function AdvancedSearchPanel() {
     try {
       const token = localStorage.getItem('token')
       const response = await fetch(
-        `http://localhost:8000/api/search/suggestions?prefix=${encodeURIComponent(query)}`,
+        `${API_URL}/api/search/suggestions?prefix=${encodeURIComponent(query)}`,
         { headers: { 'Authorization': `Bearer ${token}` } }
       )
       const data = await response.json()
@@ -56,7 +57,7 @@ export function AdvancedSearchPanel() {
     setIsSearching(true)
     try {
       const token = localStorage.getItem('token')
-      const response = await fetch('http://localhost:8000/api/search/semantic', {
+      const response = await fetch(`${API_URL}/api/search/semantic`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`,

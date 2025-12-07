@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { API_URL } from '@/lib/api-config'
 import { Upload, FileText, Trash2, Download, Eye, Search } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -62,7 +63,7 @@ export function DocumentsPanel() {
           const formData = new FormData()
           formData.append('file', file)
           
-          const response = await fetch('http://localhost:8000/api/documents/upload', {
+          const response = await fetch(`${API_URL}/api/documents/upload`, {
             method: 'POST',
             headers: {
               'Authorization': `Bearer ${token}`,
@@ -101,7 +102,7 @@ export function DocumentsPanel() {
   const handleDelete = async (id: string) => {
     try {
       const token = localStorage.getItem('auth_token')
-      const response = await fetch(`http://localhost:8000/api/documents/${id}`, {
+      const response = await fetch(`${API_URL}/api/documents/${id}`, {
         method: 'DELETE',
         headers: {
           'Authorization': `Bearer ${token}`,

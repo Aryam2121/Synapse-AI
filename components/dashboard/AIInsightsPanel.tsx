@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { API_URL } from '@/lib/api-config'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -38,19 +39,19 @@ export function AIInsightsPanel() {
     try {
       const token = localStorage.getItem('auth_token')
       
-      const [recsRes, patternsRes, summaryRes, predsRes] = await Promise.all([
-        fetch('http://localhost:8000/api/insights/ai-recommendations', {
-          headers: { Authorization: `Bearer ${token}` }
+      const [recommendationsRes, patternsRes, summariesRes, predictiveRes] = await Promise.all([
+        fetch(`${API_URL}/api/insights/ai-recommendations`, {
+          headers: { Authorization: `Bearer ${token}` },
         }),
-        fetch('http://localhost:8000/api/insights/usage-patterns', {
-          headers: { Authorization: `Bearer ${token}` }
+        fetch(`${API_URL}/api/insights/usage-patterns`, {
+          headers: { Authorization: `Bearer ${token}` },
         }),
-        fetch('http://localhost:8000/api/insights/smart-summaries?period=week', {
-          headers: { Authorization: `Bearer ${token}` }
+        fetch(`${API_URL}/api/insights/smart-summaries?period=week`, {
+          headers: { Authorization: `Bearer ${token}` },
         }),
-        fetch('http://localhost:8000/api/insights/predictive-analytics', {
-          headers: { Authorization: `Bearer ${token}` }
-        })
+        fetch(`${API_URL}/api/insights/predictive-analytics`, {
+          headers: { Authorization: `Bearer ${token}` },
+        }),
       ])
 
       if (recsRes.ok) {

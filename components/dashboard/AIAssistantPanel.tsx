@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { API_URL } from '@/lib/api-config'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -63,11 +64,11 @@ export function AIAssistantPanel() {
       const token = localStorage.getItem('auth_token')
       const headers = { Authorization: `Bearer ${token}` }
 
-      const [suggestionsRes, workflowsRes, insightsRes, codeQualityRes] = await Promise.all([
-        fetch('http://localhost:8000/api/ai-assistant/smart-suggestions', { headers }),
-        fetch('http://localhost:8000/api/ai-assistant/workflow-templates', { headers }),
-        fetch('http://localhost:8000/api/ai-assistant/ai-insights', { headers }),
-        fetch('http://localhost:8000/api/ai-assistant/code-quality-score', { headers })
+      const [suggestionsRes, templatesRes, insightsRes, qualityScoreRes] = await Promise.all([
+        fetch(`${API_URL}/api/ai-assistant/smart-suggestions`, { headers }),
+        fetch(`${API_URL}/api/ai-assistant/workflow-templates`, { headers }),
+        fetch(`${API_URL}/api/ai-assistant/ai-insights`, { headers }),
+        fetch(`${API_URL}/api/ai-assistant/code-quality-score`, { headers })
       ])
 
       if (suggestionsRes.ok) setSuggestions((await suggestionsRes.json()).suggestions)
@@ -85,7 +86,7 @@ export function AIAssistantPanel() {
   const executeWorkflow = async (templateId: string) => {
     try {
       const token = localStorage.getItem('auth_token')
-      const res = await fetch(`http://localhost:8000/api/ai-assistant/workflow-templates/${templateId}/execute`, {
+      const res = await fetch(`${API_URL}/api/ai-assistant/workflow-templates/${templateId}/execute`, {
         method: 'POST',
         headers: { Authorization: `Bearer ${token}` }
       })

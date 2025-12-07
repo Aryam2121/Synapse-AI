@@ -49,7 +49,8 @@ export function NotificationCenter() {
 
     try {
       const user = JSON.parse(userStr)
-      const ws = new WebSocket(`ws://localhost:8000/api/notifications/ws/${user.id}`)
+      const wsUrl = API_URL.replace('https://', 'wss://').replace('http://', 'ws://')
+      const ws = new WebSocket(`${wsUrl}/api/notifications/ws/${user.id}`)
 
       ws.onopen = () => {
         console.log('WebSocket connected')
@@ -82,7 +83,7 @@ export function NotificationCenter() {
   const fetchNotifications = async () => {
     try {
       const token = localStorage.getItem('auth_token')
-      const res = await fetch('http://localhost:8000/api/notifications/history', {
+      const res = await fetch(`${API_URL}/api/notifications/history`, {
         headers: { Authorization: `Bearer ${token}` }
       })
 
@@ -99,7 +100,7 @@ export function NotificationCenter() {
   const markAsRead = async (id: string) => {
     try {
       const token = localStorage.getItem('auth_token')
-      await fetch(`http://localhost:8000/api/notifications/${id}/read`, {
+      await fetch(`${API_URL}/api/notifications/${id}/read`, {
         method: 'PATCH',
         headers: { Authorization: `Bearer ${token}` }
       })
@@ -116,7 +117,7 @@ export function NotificationCenter() {
   const markAllAsRead = async () => {
     try {
       const token = localStorage.getItem('auth_token')
-      await fetch('http://localhost:8000/api/notifications/mark-all-read', {
+      await fetch(`${API_URL}/api/notifications/mark-all-read`, {
         method: 'POST',
         headers: { Authorization: `Bearer ${token}` }
       })
@@ -132,7 +133,7 @@ export function NotificationCenter() {
   const deleteNotification = async (id: string) => {
     try {
       const token = localStorage.getItem('auth_token')
-      await fetch(`http://localhost:8000/api/notifications/${id}`, {
+      await fetch(`${API_URL}/api/notifications/${id}`, {
         method: 'DELETE',
         headers: { Authorization: `Bearer ${token}` }
       })

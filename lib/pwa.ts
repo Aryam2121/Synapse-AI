@@ -1,4 +1,5 @@
 // PWA registration and management utilities
+import { API_URL } from './api-config'
 
 export const registerServiceWorker = async () => {
   if ('serviceWorker' in navigator) {
@@ -72,7 +73,7 @@ export const subscribeToPushNotifications = async () => {
 
     // Send subscription to backend
     const token = localStorage.getItem('token')
-    await fetch('http://localhost:8000/api/notifications/subscribe', {
+    await fetch(`${API_URL}/api/notifications/subscribe`, {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${token}`,
@@ -98,7 +99,7 @@ export const unsubscribeFromPushNotifications = async () => {
       
       // Notify backend
       const token = localStorage.getItem('token')
-      await fetch('http://localhost:8000/api/notifications/unsubscribe', {
+      await fetch(`${API_URL}/api/notifications/unsubscribe`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`,

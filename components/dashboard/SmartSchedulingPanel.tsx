@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { API_URL } from '@/lib/api-config'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -60,7 +61,7 @@ export function SmartSchedulingPanel() {
   const fetchFocusBlocks = async () => {
     try {
       const token = localStorage.getItem('token')
-      const response = await fetch('http://localhost:8000/api/scheduling/focus-time-suggestions', {
+      const response = await fetch(`${API_URL}/api/scheduling/focus-time-suggestions`, {
         headers: {
           'Authorization': `Bearer ${token}`
         }
@@ -76,7 +77,7 @@ export function SmartSchedulingPanel() {
   const fetchAnalytics = async () => {
     try {
       const token = localStorage.getItem('token')
-      const response = await fetch('http://localhost:8000/api/scheduling/time-analytics', {
+      const response = await fetch(`${API_URL}/api/scheduling/time-analytics`, {
         headers: {
           'Authorization': `Bearer ${token}`
         }
@@ -102,7 +103,7 @@ export function SmartSchedulingPanel() {
     setIsLoading(true)
     try {
       const token = localStorage.getItem('token')
-      const response = await fetch('http://localhost:8000/api/scheduling/suggest-meeting-times', {
+      const response = await fetch(`${API_URL}/api/scheduling/suggest-meeting-times`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`,

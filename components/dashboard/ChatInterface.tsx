@@ -12,6 +12,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import ReactMarkdown from 'react-markdown'
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter'
 import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism'
+import { API_URL } from '@/lib/api-config'
 
 interface Message {
   id: string
@@ -69,9 +70,8 @@ export function ChatInterface() {
       }
 
       // Call backend API
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
-      console.log('Sending chat request to backend:', apiUrl)
-      const response = await fetch(`${apiUrl}/api/chat`, {
+      console.log('Sending chat request to backend:', API_URL)
+      const response = await fetch(`${API_URL}/api/chat`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

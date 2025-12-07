@@ -32,7 +32,7 @@ export function CodeAssistantPanel() {
     setIsAnalyzing(true)
     try {
       const token = localStorage.getItem('token')
-      const response = await fetch('http://localhost:8000/api/code/analyze', {
+      const response = await fetch(`${API_URL}/api/code/analyze`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -71,7 +71,7 @@ export function CodeAssistantPanel() {
 
     try {
       const token = localStorage.getItem('token')
-      const response = await fetch('http://localhost:8000/api/code/generate', {
+      const response = await fetch(`${API_URL}/api/code/generate`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`,

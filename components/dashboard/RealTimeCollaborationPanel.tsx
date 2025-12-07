@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
+import { API_URL } from '@/lib/api-config'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -41,7 +42,7 @@ export function RealTimeCollaborationPanel() {
   const createSession = async () => {
     try {
       const token = localStorage.getItem('token')
-      const response = await fetch('http://localhost:8000/api/realtime/sessions/create', {
+      const response = await fetch(`${API_URL}/api/realtime/sessions/create`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -72,7 +73,8 @@ export function RealTimeCollaborationPanel() {
 
   const connectWebSocket = (sid: string) => {
     const token = localStorage.getItem('token')
-    const ws = new WebSocket(`ws://localhost:8000/ws/${sid}?token=${token}`)
+    const wsUrl = API_URL.replace('https://', 'wss://').replace('http://', 'ws://')
+    const ws = new WebSocket(`${wsUrl}/ws/${sid}?token=${token}`)
     
     ws.onopen = () => {
       setIsConnected(true)
@@ -128,7 +130,7 @@ export function RealTimeCollaborationPanel() {
     
     try {
       const token = localStorage.getItem('token')
-      const response = await fetch(`http://localhost:8000/api/realtime/sessions/${sessionId}/participants`, {
+      const response = await fetch(`${API_URL}/api/realtime/sessions/${sessionId}/participants`, {
         headers: {
           'Authorization': `Bearer ${token}`
         }

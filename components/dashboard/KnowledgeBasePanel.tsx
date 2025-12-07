@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { API_URL } from '@/lib/api-config'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -53,7 +54,7 @@ export function KnowledgeBasePanel() {
   const fetchArticles = async () => {
     try {
       const token = localStorage.getItem('token')
-      const response = await fetch('http://localhost:8000/api/knowledge/articles', {
+      const response = await fetch(`${API_URL}/api/knowledge/articles`, {
         headers: {
           'Authorization': `Bearer ${token}`
         }
@@ -69,7 +70,7 @@ export function KnowledgeBasePanel() {
   const fetchCategories = async () => {
     try {
       const token = localStorage.getItem('token')
-      const response = await fetch('http://localhost:8000/api/knowledge/categories', {
+      const response = await fetch(`${API_URL}/api/knowledge/categories`, {
         headers: {
           'Authorization': `Bearer ${token}`
         }
@@ -85,7 +86,7 @@ export function KnowledgeBasePanel() {
   const fetchTrending = async () => {
     try {
       const token = localStorage.getItem('token')
-      const response = await fetch('http://localhost:8000/api/knowledge/trending?period=week', {
+      const response = await fetch(`${API_URL}/api/knowledge/trending?period=week`, {
         headers: {
           'Authorization': `Bearer ${token}`
         }
@@ -104,7 +105,7 @@ export function KnowledgeBasePanel() {
     setIsSearching(true)
     try {
       const token = localStorage.getItem('token')
-      const response = await fetch('http://localhost:8000/api/knowledge/search', {
+      const response = await fetch(`${API_URL}/api/knowledge/search`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`,

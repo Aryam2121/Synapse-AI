@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { API_URL } from '@/lib/api-config'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -53,21 +54,21 @@ export function GamificationPanel() {
       const token = localStorage.getItem('token')
       
       const [profileRes, achievementsRes, questsRes, leaderboardRes, rewardsRes] = await Promise.all([
-        fetch('http://localhost:8000/api/gamification/profile', {
-          headers: { 'Authorization': `Bearer ${token}` }
+        fetch(`${API_URL}/api/gamification/profile`, {
+          headers: { Authorization: `Bearer ${token}` },
         }),
-        fetch('http://localhost:8000/api/gamification/achievements', {
-          headers: { 'Authorization': `Bearer ${token}` }
+        fetch(`${API_URL}/api/gamification/achievements`, {
+          headers: { Authorization: `Bearer ${token}` },
         }),
-        fetch('http://localhost:8000/api/gamification/quests', {
-          headers: { 'Authorization': `Bearer ${token}` }
+        fetch(`${API_URL}/api/gamification/quests`, {
+          headers: { Authorization: `Bearer ${token}` },
         }),
-        fetch('http://localhost:8000/api/gamification/leaderboard?timeframe=weekly', {
-          headers: { 'Authorization': `Bearer ${token}` }
+        fetch(`${API_URL}/api/gamification/leaderboard?timeframe=weekly`, {
+          headers: { Authorization: `Bearer ${token}` },
         }),
-        fetch('http://localhost:8000/api/gamification/rewards', {
-          headers: { 'Authorization': `Bearer ${token}` }
-        })
+        fetch(`${API_URL}/api/gamification/rewards`, {
+          headers: { Authorization: `Bearer ${token}` },
+        }),
       ])
 
       const [profileData, achievementsData, questsData, leaderboardData, rewardsData] = await Promise.all([
@@ -97,7 +98,7 @@ export function GamificationPanel() {
   const claimDailyBonus = async () => {
     try {
       const token = localStorage.getItem('token')
-      const response = await fetch('http://localhost:8000/api/gamification/claim-daily-bonus', {
+      const response = await fetch(`${API_URL}/api/gamification/claim-daily-bonus`, {
         method: 'POST',
         headers: { 'Authorization': `Bearer ${token}` }
       })
@@ -122,7 +123,7 @@ export function GamificationPanel() {
   const redeemReward = async (rewardId: string) => {
     try {
       const token = localStorage.getItem('token')
-      const response = await fetch(`http://localhost:8000/api/gamification/rewards/${rewardId}/redeem`, {
+      const response = await fetch(`${API_URL}/api/gamification/rewards/${rewardId}/redeem`, {
         method: 'POST',
         headers: { 'Authorization': `Bearer ${token}` }
       })

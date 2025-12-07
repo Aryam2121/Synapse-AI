@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { API_URL } from '@/lib/api-config'
 import { Moon, Sun, Bell, Lock, Database, Zap, Save, User2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
@@ -39,7 +40,7 @@ export function SettingsPanel() {
   const fetchSettings = async () => {
     try {
       const token = localStorage.getItem('auth_token')
-      const res = await fetch('http://localhost:8000/api/settings/preferences', {
+      const res = await fetch(`${API_URL}/api/settings/preferences`, {
         headers: { Authorization: `Bearer ${token}` }
       })
       if (res.ok) {
@@ -60,7 +61,7 @@ export function SettingsPanel() {
   const fetchProfile = async () => {
     try {
       const token = localStorage.getItem('auth_token')
-      const res = await fetch('http://localhost:8000/api/settings/profile', {
+      const res = await fetch(`${API_URL}/api/settings/profile`, {
         headers: { Authorization: `Bearer ${token}` }
       })
       if (res.ok) {
@@ -79,7 +80,7 @@ export function SettingsPanel() {
   const fetchUsageStats = async () => {
     try {
       const token = localStorage.getItem('auth_token')
-      const res = await fetch('http://localhost:8000/api/settings/usage-stats', {
+      const res = await fetch(`${API_URL}/api/settings/usage-stats`, {
         headers: { Authorization: `Bearer ${token}` }
       })
       if (res.ok) {
@@ -94,8 +95,8 @@ export function SettingsPanel() {
   const handleSave = async () => {
     try {
       const token = localStorage.getItem('auth_token')
-      const res = await fetch('http://localhost:8000/api/settings/preferences', {
-        method: 'PATCH',
+      const res = await fetch(`${API_URL}/api/settings/preferences`, {
+        method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${token}`
@@ -116,8 +117,8 @@ export function SettingsPanel() {
   const handleProfileSave = async () => {
     try {
       const token = localStorage.getItem('auth_token')
-      const res = await fetch('http://localhost:8000/api/settings/profile', {
-        method: 'PATCH',
+      const res = await fetch(`${API_URL}/api/settings/profile`, {
+        method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${token}`

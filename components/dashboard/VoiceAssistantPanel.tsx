@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
+import { API_URL } from '@/lib/api-config'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -32,7 +33,7 @@ export function VoiceAssistantPanel() {
   const fetchHistory = async () => {
     try {
       const token = localStorage.getItem('token')
-      const response = await fetch('http://localhost:8000/api/voice/history', {
+      const response = await fetch(`${API_URL}/api/voice/history`, {
         headers: { 'Authorization': `Bearer ${token}` }
       })
       const data = await response.json()
@@ -101,7 +102,7 @@ export function VoiceAssistantPanel() {
     setIsLoading(true)
     try {
       const token = localStorage.getItem('token')
-      const response = await fetch('http://localhost:8000/api/voice/command', {
+      const response = await fetch(`${API_URL}/api/voice/command`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -160,7 +161,7 @@ export function VoiceAssistantPanel() {
   const speakText = async (text: string) => {
     try {
       const token = localStorage.getItem('token')
-      const response = await fetch('http://localhost:8000/api/voice/text-to-speech', {
+      const response = await fetch(`${API_URL}/api/voice/text-to-speech`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`,

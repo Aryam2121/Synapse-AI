@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { API_URL } from '@/lib/api-config'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -60,15 +61,15 @@ export function AutomationPanel() {
       const token = localStorage.getItem('token')
       
       const [rulesRes, workflowsRes, templatesRes] = await Promise.all([
-        fetch('http://localhost:8000/api/automation/rules', {
-          headers: { 'Authorization': `Bearer ${token}` }
+        fetch(`${API_URL}/api/automation/rules`, {
+          headers: { Authorization: `Bearer ${token}` },
         }),
-        fetch('http://localhost:8000/api/automation/workflows', {
-          headers: { 'Authorization': `Bearer ${token}` }
+        fetch(`${API_URL}/api/automation/workflows`, {
+          headers: { Authorization: `Bearer ${token}` },
         }),
-        fetch('http://localhost:8000/api/automation/templates', {
-          headers: { 'Authorization': `Bearer ${token}` }
-        })
+        fetch(`${API_URL}/api/automation/templates`, {
+          headers: { Authorization: `Bearer ${token}` },
+        }),
       ])
 
       const [rulesData, workflowsData, templatesData] = await Promise.all([
@@ -94,7 +95,7 @@ export function AutomationPanel() {
   const testRule = async (ruleId: string) => {
     try {
       const token = localStorage.getItem('token')
-      const response = await fetch(`http://localhost:8000/api/automation/test-rule/${ruleId}`, {
+      const response = await fetch(`${API_URL}/api/automation/test-rule/${ruleId}`, {
         method: 'POST',
         headers: { 'Authorization': `Bearer ${token}` }
       })
@@ -117,7 +118,7 @@ export function AutomationPanel() {
   const executeWorkflow = async (workflowId: string) => {
     try {
       const token = localStorage.getItem('token')
-      const response = await fetch(`http://localhost:8000/api/automation/workflows/${workflowId}/execute`, {
+      const response = await fetch(`${API_URL}/api/automation/workflows/${workflowId}/execute`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`,
