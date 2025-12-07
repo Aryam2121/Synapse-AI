@@ -77,7 +77,7 @@ function DashboardPage() {
       
       {/* Sidebar */}
       <div className={`${sidebarOpen ? 'w-64' : 'w-0'} transition-all duration-300 overflow-hidden`}>
-        <Sidebar currentView={currentView} onViewChange={setCurrentView} />
+        <Sidebar currentView={currentView} onViewChange={(view) => setCurrentView(view as View)} />
       </div>
 
       {/* Main Content */}

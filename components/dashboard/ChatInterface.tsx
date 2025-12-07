@@ -249,19 +249,19 @@ export function ChatInterface() {
                   <div className="prose prose-sm dark:prose-invert max-w-none">
                     <ReactMarkdown
                       components={{
-                        code({ node, inline, className, children, ...props }) {
+                        code(props) {
+                          const { children, className, ...rest } = props
                           const match = /language-(\w+)/.exec(className || '')
-                          return !inline && match ? (
+                          return match ? (
                             <SyntaxHighlighter
-                              style={vscDarkPlus}
+                              style={vscDarkPlus as any}
                               language={match[1]}
                               PreTag="div"
-                              {...props}
                             >
                               {String(children).replace(/\n$/, '')}
                             </SyntaxHighlighter>
                           ) : (
-                            <code className={className} {...props}>
+                            <code className={className} {...rest}>
                               {children}
                             </code>
                           )
