@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
+import { API_URL } from '@/lib/api-config'
 import { Bell, Check, X, Archive } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {
