@@ -72,9 +72,9 @@ export function AIAssistantPanel() {
       ])
 
       if (suggestionsRes.ok) setSuggestions((await suggestionsRes.json()).suggestions)
-      if (workflowsRes.ok) setWorkflows((await workflowsRes.json()).templates)
+      if (templatesRes.ok) setWorkflows((await templatesRes.json()).templates)
       if (insightsRes.ok) setInsights((await insightsRes.json()).insights)
-      if (codeQualityRes.ok) setCodeQuality(await codeQualityRes.json())
+      if (qualityScoreRes.ok) setCodeQuality(await qualityScoreRes.json())
     } catch (error) {
       console.error('Failed to fetch AI assistant data:', error)
       toast.error('Failed to load AI insights')
