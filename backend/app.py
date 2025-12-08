@@ -178,6 +178,9 @@ async def chat(
     request: ChatMessage,
     current_user: User = Depends(get_current_active_user)
 ):
+    import time
+    start_time = time.time()
+    
     try:
         logger.info(f"User {current_user.email} - Received chat message: {request.message[:50]}...")
         
@@ -202,6 +205,11 @@ async def chat(
             context=relevant_docs if relevant_docs else [],
             conversation_id=request.conversation_id
         )
+        
+        # Log response time
+        elapsed_time = time.time() - start_time
+        cached = response.get("cached", False)
+        logger.info(f"Chat response generated in {elapsed_time:.2f}s (cached: {cached})")
         
         return ChatResponse(
             response=response["content"],

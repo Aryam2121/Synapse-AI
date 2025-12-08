@@ -4,7 +4,9 @@ from langchain_groq import ChatGroq
 from langchain_core.messages import HumanMessage, SystemMessage, AIMessage
 import os
 import uuid
-from datetime import datetime
+import hashlib
+from datetime import datetime, timedelta
+from functools import lru_cache
 
 class BaseAgent:
     """Base class for all specialized agents"""
@@ -25,9 +27,12 @@ class BaseAgent:
             self.llm = ChatGroq(
                 model=model,
                 temperature=0.7,
-                api_key=groq_api_key
+                api_key=groq_api_key,
+                streaming=True,  # Enable streaming for faster perceived response
+                max_tokens=2048,  # Limit tokens to speed up response
+                timeout=30  # 30 second timeout
             )
-            print(f"✓ Using FREE Groq Cloud model: {model}")
+            print(f"✓ Using FREE Groq Cloud model: {model} (streaming enabled)")
         elif openai_api_key:
             # Paid: Use OpenAI if key provided
             from langchain_openai import ChatOpenAI
@@ -54,6 +59,22 @@ class BaseAgent:
             )
         
         self.conversation_history: Dict[str, List[Any]] = {}
+        self.response_cache: Dict[str, tuple] = {}  # Cache for responses (hash: (response, timestamp))
+    
+    def _get_cache_key(self, message: str, context: List[Dict[str, Any]] = None) -> str:
+        """Generate cache key for a message"""
+        context_str = str(context) if context else ""
+        cache_input = f"{self.name}:{message}:{context_str}"
+        return hashlib.md5(cache_input.encode()).hexdigest()
+    
+    def _get_cached_response(self, cache_key: str, max_age_minutes: int = 10) -> Optional[str]:
+        """Get cached response if available and not expired"""
+        if cache_key in self.response_cache:
+            response, timestamp = self.response_cache[cache_key]
+            age = datetime.now() - timestamp
+            if age < timedelta(minutes=max_age_minutes):
+                return response
+        return None
     
     async def process(
         self,
@@ -65,6 +86,18 @@ class BaseAgent:
         
         if conversation_id is None:
             conversation_id = str(uuid.uuid4())
+        
+        # Check cache for non-conversational queries
+        cache_key = self._get_cache_key(message, context)
+        cached_response = self._get_cached_response(cache_key)
+        if cached_response and not conversation_id:
+            return {
+                "content": cached_response,
+                "conversation_id": conversation_id,
+                "agent": self.name,
+                "timestamp": datetime.now().isoformat(),
+                "cached": True
+            }
         
         # Get conversation history
         if conversation_id not in self.conversation_history:
@@ -90,6 +123,16 @@ class BaseAgent:
         # Get response
         response = await self.llm.agenerate([messages])
         ai_message = response.generations[0][0].text
+        
+        # Cache the response for future similar queries
+        self.response_cache[cache_key] = (ai_message, datetime.now())
+        
+        # Clean old cache entries (keep last 100)
+        if len(self.response_cache) > 100:
+            oldest_keys = sorted(self.response_cache.keys(), 
+                               key=lambda k: self.response_cache[k][1])[:50]
+            for old_key in oldest_keys:
+                del self.response_cache[old_key]
         
         # Update history
         history.append(HumanMessage(content=message))
