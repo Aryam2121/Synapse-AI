@@ -1,6 +1,6 @@
 from typing import List, Dict, Any, Optional
 from langchain_openai import OpenAIEmbeddings
-from langchain_community.embeddings import OllamaEmbeddings
+from langchain_community.embeddings import OllamaEmbeddings, HuggingFaceEmbeddings
 from langchain_groq import ChatGroq
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_community.vectorstores import Pinecone, Chroma
@@ -46,10 +46,13 @@ class RAGPipeline:
                 model=ollama_model
             )
         else:
-            # For Groq-only setup, use a lightweight alternative or disable RAG
-            logger.warning("No embeddings configured - RAG features will be limited")
-            # You could use HuggingFace embeddings or sentence-transformers here
-            self.embeddings = None
+            # For Groq-only setup, use HuggingFace sentence-transformers (free, runs locally)
+            logger.info("Using HuggingFace embeddings (sentence-transformers)")
+            self.embeddings = HuggingFaceEmbeddings(
+                model_name="all-MiniLM-L6-v2",  # Fast, lightweight model
+                model_kwargs={'device': 'cpu'},
+                encode_kwargs={'normalize_embeddings': True}
+            )
         
         self.text_splitter = RecursiveCharacterTextSplitter(
             chunk_size=1000,
