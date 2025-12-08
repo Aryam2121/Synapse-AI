@@ -3,11 +3,6 @@ const nextConfig = {
   reactStrictMode: true,
   swcMinify: true,
   
-  // Performance optimizations
-  compiler: {
-    removeConsole: process.env.NODE_ENV === 'production',
-  },
-  
   // Faster builds and optimizations
   experimental: {
     optimizePackageImports: ['lucide-react', 'framer-motion'],
