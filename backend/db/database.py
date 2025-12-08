@@ -14,14 +14,16 @@ if DATABASE_URL.startswith("postgresql://") or DATABASE_URL.startswith("postgres
     DATABASE_URL = DATABASE_URL.replace("postgresql://", "postgresql+asyncpg://")
     DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql+asyncpg://")
 
-# Create async engine with connection pooling for better performance
+# Create async engine with optimized connection pooling
 engine = create_async_engine(
     DATABASE_URL,
     echo=False,  # Disable SQL logging in production for speed
-    pool_size=10,  # Connection pool
-    max_overflow=20,  # Additional connections
+    pool_size=5,  # Reduced for faster startup
+    max_overflow=10,  # Fewer overflow connections
     pool_pre_ping=True,  # Verify connections before use
-    pool_recycle=3600,  # Recycle connections after 1 hour
+    pool_recycle=1800,  # Recycle connections after 30 min
+    pool_timeout=10,  # Faster timeout for connection acquisition
+    connect_args={"timeout": 10} if "sqlite" in DATABASE_URL else {"command_timeout": 10}
 )
 
 # Create session factory

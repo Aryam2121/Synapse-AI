@@ -72,7 +72,7 @@ export function ChatInterface() {
       // Call backend API with timeout for faster failures
       console.log('Sending chat request to backend:', API_URL)
       const controller = new AbortController()
-      const timeoutId = setTimeout(() => controller.abort(), 25000) // 25s timeout
+      const timeoutId = setTimeout(() => controller.abort(), 20000) // 20s timeout
       
       const response = await fetch(`${API_URL}/api/chat`, {
         method: 'POST',

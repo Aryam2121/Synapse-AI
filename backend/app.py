@@ -1,12 +1,21 @@
 from fastapi import FastAPI, HTTPException, UploadFile, File, WebSocket, WebSocketDisconnect, Depends
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import StreamingResponse
+from fastapi.middleware.gzip import GZipMiddleware
+from fastapi.responses import StreamingResponse, Response, ORJSONResponse
 from pydantic import BaseModel
 from typing import List, Optional, Dict, Any
 import os
 from dotenv import load_dotenv
 import asyncio
 from datetime import datetime
+from functools import lru_cache
+
+# Install uvloop for faster async performance
+try:
+    import uvloop
+    uvloop.install()
+except ImportError:
+    pass
 
 # Import our modules
 from agents.router import AgentRouter
@@ -41,7 +50,8 @@ load_dotenv()
 app = FastAPI(
     title="Synapse AI Workspace API",
     description="Backend API for Synapse AI Workspace with multi-agent system and RAG",
-    version="1.0.0"
+    version="1.0.0",
+    default_response_class=ORJSONResponse
 )
 
 # Startup event to initialize database
@@ -90,6 +100,14 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Add GZip compression for faster responses
+app.add_middleware(GZipMiddleware, minimum_size=1000)
+
+# Add performance monitoring middleware (only in production)
+if os.getenv("ENABLE_PERFORMANCE_MONITORING", "false").lower() == "true":
+    from utils.performance import PerformanceMiddleware
+    app.add_middleware(PerformanceMiddleware)
 
 # Initialize components
 # Use lazy loading for RAG pipeline to avoid startup timeout
@@ -163,14 +181,18 @@ async def startup_event():
     logger.info("RAG Pipeline ready")
     logger.info("Multi-Agent System ready")
 
-# Health Check
+# Health Check with caching
 @app.get("/health")
+@lru_cache(maxsize=1)
 async def health_check():
-    return {
-        "status": "healthy",
-        "timestamp": datetime.utcnow().isoformat(),
-        "version": "1.0.0"
-    }
+    return Response(
+        content='{"status":"healthy","version":"1.0.0"}',
+        media_type="application/json",
+        headers={
+            "Cache-Control": "public, max-age=60",
+            "X-Response-Time": "instant"
+        }
+    )
 
 # Chat Endpoint
 @app.post("/api/chat", response_model=ChatResponse)

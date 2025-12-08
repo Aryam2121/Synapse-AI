@@ -26,12 +26,13 @@ class BaseAgent:
             model = os.getenv("GROQ_MODEL", "llama-3.1-8b-instant")  # Fastest model
             self.llm = ChatGroq(
                 model=model,
-                temperature=0.5,  # Lower for faster, more focused responses
+                temperature=0.3,  # Even lower for faster, more focused responses
                 api_key=groq_api_key,
                 streaming=True,
-                max_tokens=1500,  # Reduced for faster responses
-                timeout=20,  # Shorter timeout
-                max_retries=2  # Faster failure recovery
+                max_tokens=1024,  # Further reduced for faster responses
+                timeout=15,  # Even shorter timeout
+                max_retries=1,  # Single retry for faster failure
+                request_timeout=15  # Additional timeout parameter
             )
             print(f"✓ Using FASTEST Groq model: {model}")
         elif openai_api_key:

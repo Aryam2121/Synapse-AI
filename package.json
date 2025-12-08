@@ -6,7 +6,8 @@
   "scripts": {
     "dev": "next dev --turbo",
     "dev:normal": "next dev",
-    "build": "next build",
+    "build": "NODE_OPTIONS='--max-old-space-size=4096' next build",
+    "build:analyze": "ANALYZE=true next build",
     "start": "next start",
     "lint": "next lint",
     "backend": "cd backend && python app.py",

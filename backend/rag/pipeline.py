@@ -56,8 +56,8 @@ class RAGPipeline:
             )
         
         self.text_splitter = RecursiveCharacterTextSplitter(
-            chunk_size=1000,
-            chunk_overlap=200,
+            chunk_size=500,  # Smaller chunks for faster processing
+            chunk_overlap=100,  # Reduced overlap
             length_function=len,
         )
         

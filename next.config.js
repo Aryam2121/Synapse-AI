@@ -2,10 +2,24 @@
 const nextConfig = {
   reactStrictMode: true,
   swcMinify: true,
+  productionBrowserSourceMaps: false,
   
   // Faster builds and optimizations
   experimental: {
     optimizePackageImports: ['lucide-react', 'framer-motion', '@radix-ui/react-dialog', '@radix-ui/react-dropdown-menu'],
+    webpackBuildWorker: true,
+  },
+  
+  // Webpack optimizations
+  webpack: (config, { dev, isServer }) => {
+    if (!dev && !isServer) {
+      config.optimization.minimize = true;
+      config.cache = {
+        type: 'filesystem',
+        maxAge: 5184000000, // 60 days
+      };
+    }
+    return config;
   },
   
   // Speed up dev server

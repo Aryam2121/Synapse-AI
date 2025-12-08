@@ -1,28 +1,37 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, lazy, Suspense } from 'react'
 import { Sidebar } from '@/components/dashboard/Sidebar'
 import { ChatInterface } from '@/components/dashboard/ChatInterface'
-import { DocumentsPanel } from '@/components/dashboard/DocumentsPanel'
-import { TasksPanel } from '@/components/dashboard/TasksPanel'
-import { CodePanel } from '@/components/dashboard/CodePanel'
-import { AnalyticsPanel } from '@/components/dashboard/AnalyticsPanel'
-import { SettingsPanel } from '@/components/dashboard/SettingsPanel'
-import { AIInsightsPanel } from '@/components/dashboard/AIInsightsPanel'
-import { CollaborationPanel } from '@/components/dashboard/CollaborationPanel'
-import { VoiceAssistantPanel } from '@/components/dashboard/VoiceAssistantPanel'
-import { AdvancedSearchPanel } from '@/components/dashboard/AdvancedSearchPanel'
-import { AutomationPanel } from '@/components/dashboard/AutomationPanel'
-import { VisualizationPanel } from '@/components/dashboard/VisualizationPanel'
-import { GamificationPanel } from '@/components/dashboard/GamificationPanel'
-import { CodeAssistantPanel } from '@/components/dashboard/CodeAssistantPanel'
-import { RealTimeCollaborationPanel } from '@/components/dashboard/RealTimeCollaborationPanel'
-import { SmartSchedulingPanel } from '@/components/dashboard/SmartSchedulingPanel'
-import { KnowledgeBasePanel } from '@/components/dashboard/KnowledgeBasePanel'
-import { CommandPalette } from '@/components/dashboard/CommandPalette'
 import { Menu } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { withAuth } from '@/components/auth/ProtectedRoute'
+
+// Lazy load panels for better performance
+const DocumentsPanel = lazy(() => import('@/components/dashboard/DocumentsPanel').then(m => ({ default: m.DocumentsPanel })))
+const TasksPanel = lazy(() => import('@/components/dashboard/TasksPanel').then(m => ({ default: m.TasksPanel })))
+const CodePanel = lazy(() => import('@/components/dashboard/CodePanel').then(m => ({ default: m.CodePanel })))
+const AnalyticsPanel = lazy(() => import('@/components/dashboard/AnalyticsPanel').then(m => ({ default: m.AnalyticsPanel })))
+const SettingsPanel = lazy(() => import('@/components/dashboard/SettingsPanel').then(m => ({ default: m.SettingsPanel })))
+const AIInsightsPanel = lazy(() => import('@/components/dashboard/AIInsightsPanel').then(m => ({ default: m.AIInsightsPanel })))
+const CollaborationPanel = lazy(() => import('@/components/dashboard/CollaborationPanel').then(m => ({ default: m.CollaborationPanel })))
+const VoiceAssistantPanel = lazy(() => import('@/components/dashboard/VoiceAssistantPanel').then(m => ({ default: m.VoiceAssistantPanel })))
+const AdvancedSearchPanel = lazy(() => import('@/components/dashboard/AdvancedSearchPanel').then(m => ({ default: m.AdvancedSearchPanel })))
+const AutomationPanel = lazy(() => import('@/components/dashboard/AutomationPanel').then(m => ({ default: m.AutomationPanel })))
+const VisualizationPanel = lazy(() => import('@/components/dashboard/VisualizationPanel').then(m => ({ default: m.VisualizationPanel })))
+const GamificationPanel = lazy(() => import('@/components/dashboard/GamificationPanel').then(m => ({ default: m.GamificationPanel })))
+const CodeAssistantPanel = lazy(() => import('@/components/dashboard/CodeAssistantPanel').then(m => ({ default: m.CodeAssistantPanel })))
+const RealTimeCollaborationPanel = lazy(() => import('@/components/dashboard/RealTimeCollaborationPanel').then(m => ({ default: m.RealTimeCollaborationPanel })))
+const SmartSchedulingPanel = lazy(() => import('@/components/dashboard/SmartSchedulingPanel').then(m => ({ default: m.SmartSchedulingPanel })))
+const KnowledgeBasePanel = lazy(() => import('@/components/dashboard/KnowledgeBasePanel').then(m => ({ default: m.KnowledgeBasePanel })))
+const CommandPalette = lazy(() => import('@/components/dashboard/CommandPalette').then(m => ({ default: m.CommandPalette })))
+
+// Loading component
+const PanelLoader = () => (
+  <div className="flex items-center justify-center h-full">
+    <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
+  </div>
+)
 
 type View = 'chat' | 'documents' | 'tasks' | 'code' | 'analytics' | 'settings' | 'insights' | 'collaboration' | 'voice' | 'search' | 'automation' | 'visualization' | 'gamification' | 'code-assistant' | 'realtime' | 'scheduling' | 'knowledge'
 
@@ -35,37 +44,37 @@ function DashboardPage() {
       case 'chat':
         return <ChatInterface />
       case 'documents':
-        return <DocumentsPanel />
+        return <Suspense fallback={<PanelLoader />}><DocumentsPanel /></Suspense>
       case 'tasks':
-        return <TasksPanel />
+        return <Suspense fallback={<PanelLoader />}><TasksPanel /></Suspense>
       case 'code':
-        return <CodePanel />
+        return <Suspense fallback={<PanelLoader />}><CodePanel /></Suspense>
       case 'analytics':
-        return <AnalyticsPanel />
+        return <Suspense fallback={<PanelLoader />}><AnalyticsPanel /></Suspense>
       case 'settings':
-        return <SettingsPanel />
+        return <Suspense fallback={<PanelLoader />}><SettingsPanel /></Suspense>
       case 'insights':
-        return <AIInsightsPanel />
+        return <Suspense fallback={<PanelLoader />}><AIInsightsPanel /></Suspense>
       case 'collaboration':
-        return <CollaborationPanel />
+        return <Suspense fallback={<PanelLoader />}><CollaborationPanel /></Suspense>
       case 'voice':
-        return <VoiceAssistantPanel />
+        return <Suspense fallback={<PanelLoader />}><VoiceAssistantPanel /></Suspense>
       case 'search':
-        return <AdvancedSearchPanel />
+        return <Suspense fallback={<PanelLoader />}><AdvancedSearchPanel /></Suspense>
       case 'automation':
-        return <AutomationPanel />
+        return <Suspense fallback={<PanelLoader />}><AutomationPanel /></Suspense>
       case 'visualization':
-        return <VisualizationPanel />
+        return <Suspense fallback={<PanelLoader />}><VisualizationPanel /></Suspense>
       case 'gamification':
-        return <GamificationPanel />
+        return <Suspense fallback={<PanelLoader />}><GamificationPanel /></Suspense>
       case 'code-assistant':
-        return <CodeAssistantPanel />
+        return <Suspense fallback={<PanelLoader />}><CodeAssistantPanel /></Suspense>
       case 'realtime':
-        return <RealTimeCollaborationPanel />
+        return <Suspense fallback={<PanelLoader />}><RealTimeCollaborationPanel /></Suspense>
       case 'scheduling':
-        return <SmartSchedulingPanel />
+        return <Suspense fallback={<PanelLoader />}><SmartSchedulingPanel /></Suspense>
       case 'knowledge':
-        return <KnowledgeBasePanel />
+        return <Suspense fallback={<PanelLoader />}><KnowledgeBasePanel /></Suspense>
       default:
         return <ChatInterface />
     }
@@ -105,6 +114,11 @@ function DashboardPage() {
         <main className="flex-1 overflow-hidden bg-gradient-to-br from-slate-900/50 to-slate-800/50 backdrop-blur-sm">
           {renderView()}
         </main>
+
+        {/* Command Palette - Lazy loaded */}
+        <Suspense fallback={null}>
+          <CommandPalette onNavigate={setCurrentView} />
+        </Suspense>
       </div>
     </div>
   )
