@@ -117,7 +117,7 @@ function DashboardPage() {
 
         {/* Command Palette - Lazy loaded */}
         <Suspense fallback={null}>
-          <CommandPalette onNavigate={setCurrentView} />
+          <CommandPalette onNavigate={(view: string) => setCurrentView(view as View)} />
         </Suspense>
       </div>
     </div>
