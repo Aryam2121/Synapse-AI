@@ -35,6 +35,7 @@ class BaseAgent:
                 request_timeout=15  # Additional timeout parameter
             )
             print(f"✓ Using FASTEST Groq model: {model}")
+            print(f"✓ Groq API Key: {groq_api_key[:10]}...{groq_api_key[-4:]}")
         elif openai_api_key:
             # Paid: Use OpenAI if key provided
             from langchain_openai import ChatOpenAI
@@ -93,6 +94,7 @@ class BaseAgent:
         cache_key = self._get_cache_key(message, context)
         cached_response = self._get_cached_response(cache_key)
         if cached_response and not conversation_id:
+            print(f"✓ CACHE HIT - Returning cached response for: {message[:50]}...")
             return {
                 "content": cached_response,
                 "conversation_id": conversation_id,
@@ -100,6 +102,8 @@ class BaseAgent:
                 "timestamp": datetime.now().isoformat(),
                 "cached": True
             }
+        
+        print(f"✓ CALLING GROQ API for: {message[:50]}...")
         
         # Get conversation history
         if conversation_id not in self.conversation_history:
@@ -123,8 +127,10 @@ class BaseAgent:
         messages.append(HumanMessage(content=message))
         
         # Get response
+        print(f"[GROQ API CALL] Sending to Groq: {message[:50]}...")
         response = await self.llm.agenerate([messages])
         ai_message = response.generations[0][0].text
+        print(f"[GROQ RESPONSE] Received {len(ai_message)} chars from Groq API")
         
         # Cache the response for future similar queries
         self.response_cache[cache_key] = (ai_message, datetime.now())

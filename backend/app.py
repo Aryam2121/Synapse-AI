@@ -194,6 +194,29 @@ async def health_check():
         }
     )
 
+# Configuration Check Endpoint
+@app.get("/api/config-check")
+async def config_check():
+    """Check which AI provider is configured - useful for debugging"""
+    groq_key = os.getenv("GROQ_API_KEY")
+    openai_key = os.getenv("OPENAI_API_KEY")
+    use_ollama = os.getenv("USE_OLLAMA", "true").lower() == "true"
+    
+    config = {
+        "groq_configured": bool(groq_key),
+        "groq_key_preview": f"{groq_key[:10]}...{groq_key[-4:]}" if groq_key else "NOT SET",
+        "openai_configured": bool(openai_key),
+        "ollama_enabled": use_ollama,
+        "active_provider": "groq" if groq_key else ("openai" if openai_key else ("ollama" if use_ollama else "NONE - ERROR!")),
+        "groq_model": os.getenv("GROQ_MODEL", "llama-3.1-8b-instant"),
+        "database_url_set": bool(os.getenv("DATABASE_URL")),
+        "frontend_url": os.getenv("FRONTEND_URL", "not set"),
+        "timestamp": datetime.now().isoformat()
+    }
+    
+    logger.info(f"Config check requested - Active provider: {config['active_provider']}")
+    return config
+
 # Chat Endpoint
 @app.post("/api/chat", response_model=ChatResponse)
 async def chat(
