@@ -228,12 +228,7 @@ export default function RegisterPage() {
           transition={{ delay: 0.5 }}
           className="mt-6 space-y-3"
         >
-          <div className="bg-blue-500/20 backdrop-blur-sm border border-blue-400/30 rounded-lg p-3">
-            <p className="text-xs text-blue-200 text-center">
-              ℹ️ <strong>Development Mode:</strong> The database resets when the backend redeploys. 
-              You may need to create a new account if the server restarts.
-            </p>
-          </div>
+       
           <p className="text-center text-xs text-slate-400">
             By creating an account, you agree to our Terms of Service and Privacy Policy
           </p>
