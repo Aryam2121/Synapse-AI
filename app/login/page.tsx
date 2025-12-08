@@ -72,10 +72,22 @@ export default function LoginPage() {
                 <motion.div
                   initial={{ opacity: 0, y: -10 }}
                   animate={{ opacity: 1, y: 0 }}
-                  className="bg-destructive/10 border border-destructive/50 text-destructive px-4 py-3 rounded-lg flex items-center gap-2"
+                  className="bg-destructive/10 border border-destructive/50 text-destructive px-4 py-3 rounded-lg"
                 >
-                  <AlertCircle className="h-4 w-4" />
-                  <span className="text-sm">{error}</span>
+                  <div className="flex items-start gap-2">
+                    <AlertCircle className="h-4 w-4 mt-0.5 flex-shrink-0" />
+                    <div className="text-sm space-y-1">
+                      <p className="font-medium">{error}</p>
+                      {error.includes('Incorrect email or password') && (
+                        <p className="text-xs opacity-80">
+                          Note: The database resets when the backend redeploys. You may need to{' '}
+                          <Link href="/register" className="underline font-medium">
+                            register again
+                          </Link>.
+                        </p>
+                      )}
+                    </div>
+                  </div>
                 </motion.div>
               )}
 

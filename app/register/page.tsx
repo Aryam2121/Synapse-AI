@@ -203,9 +203,17 @@ export default function RegisterPage() {
           </CardContent>
         </Card>
 
-        <p className="text-center text-xs text-muted-foreground mt-6">
-          By creating an account, you agree to our Terms of Service and Privacy Policy
-        </p>
+        <div className="mt-6 space-y-2">
+          <div className="bg-blue-500/10 border border-blue-500/30 rounded-lg p-3">
+            <p className="text-xs text-blue-600 dark:text-blue-400 text-center">
+              ℹ️ <strong>Development Mode:</strong> The database resets when the backend redeploys. 
+              You may need to create a new account if the server restarts.
+            </p>
+          </div>
+          <p className="text-center text-xs text-muted-foreground">
+            By creating an account, you agree to our Terms of Service and Privacy Policy
+          </p>
+        </div>
       </motion.div>
     </div>
   )
