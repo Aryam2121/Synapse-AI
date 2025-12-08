@@ -92,8 +92,18 @@ app.add_middleware(
 )
 
 # Initialize components
-rag_pipeline = RAGPipeline()
+# Use lazy loading for RAG pipeline to avoid startup timeout
+rag_pipeline = None
 agent_router = AgentRouter()
+
+def get_rag_pipeline():
+    """Lazy-load RAG pipeline to avoid startup timeout"""
+    global rag_pipeline
+    if rag_pipeline is None:
+        logger.info("Initializing RAG pipeline (this may take a moment on first use)...")
+        rag_pipeline = RAGPipeline()
+        logger.info("RAG pipeline initialized successfully")
+    return rag_pipeline
 
 # Models
 class ChatMessage(BaseModel):
@@ -181,7 +191,8 @@ async def chat(
         # Process with RAG (handle empty results gracefully)
         relevant_docs = []
         try:
-            relevant_docs = await rag_pipeline.search(request.message, k=3)
+            pipeline = get_rag_pipeline()
+            relevant_docs = await pipeline.search(request.message, k=3)
         except Exception as rag_error:
             logger.warning(f"RAG search failed: {str(rag_error)}, continuing without context")
         
@@ -237,7 +248,8 @@ async def upload_document(file: UploadFile = File(...)):
             f.write(content)
         
         # Process with RAG
-        doc_id = await rag_pipeline.add_document(file_path, file.filename)
+        pipeline = get_rag_pipeline()
+        doc_id = await pipeline.add_document(file_path, file.filename)
         
         return {
             "status": "success",
@@ -254,7 +266,8 @@ async def upload_document(file: UploadFile = File(...)):
 @app.get("/api/documents")
 async def list_documents():
     try:
-        documents = await rag_pipeline.list_documents()
+        pipeline = get_rag_pipeline()
+        documents = await pipeline.list_documents()
         return {"documents": documents}
     except Exception as e:
         logger.error(f"Error listing documents: {str(e)}")
@@ -264,7 +277,8 @@ async def list_documents():
 @app.delete("/api/documents/{document_id}")
 async def delete_document(document_id: str):
     try:
-        await rag_pipeline.delete_document(document_id)
+        pipeline = get_rag_pipeline()
+        await pipeline.delete_document(document_id)
         return {"status": "success", "message": "Document deleted"}
     except Exception as e:
         logger.error(f"Error deleting document: {str(e)}")
