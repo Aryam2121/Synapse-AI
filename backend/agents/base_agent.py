@@ -23,16 +23,17 @@ class BaseAgent:
         
         if groq_api_key:
             # FREE Cloud: Use Groq (recommended for production)
-            model = os.getenv("GROQ_MODEL", "llama-3.3-70b-versatile")
+            model = os.getenv("GROQ_MODEL", "llama-3.1-8b-instant")  # Fastest model
             self.llm = ChatGroq(
                 model=model,
-                temperature=0.7,
+                temperature=0.5,  # Lower for faster, more focused responses
                 api_key=groq_api_key,
-                streaming=True,  # Enable streaming for faster perceived response
-                max_tokens=2048,  # Limit tokens to speed up response
-                timeout=30  # 30 second timeout
+                streaming=True,
+                max_tokens=1500,  # Reduced for faster responses
+                timeout=20,  # Shorter timeout
+                max_retries=2  # Faster failure recovery
             )
-            print(f"✓ Using FREE Groq Cloud model: {model} (streaming enabled)")
+            print(f"✓ Using FASTEST Groq model: {model}")
         elif openai_api_key:
             # Paid: Use OpenAI if key provided
             from langchain_openai import ChatOpenAI
@@ -113,8 +114,8 @@ class BaseAgent:
             context_text = self._format_context(context)
             messages.append(SystemMessage(content=f"Relevant context:\n{context_text}"))
         
-        # Add conversation history
-        for msg in history[-10:]:  # Last 10 messages
+        # Add conversation history (reduced for speed)
+        for msg in history[-5:]:  # Last 5 messages only
             messages.append(msg)
         
         # Add current message

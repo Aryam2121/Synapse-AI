@@ -69,8 +69,11 @@ export function ChatInterface() {
         throw new Error('Please log in to use chat')
       }
 
-      // Call backend API
+      // Call backend API with timeout for faster failures
       console.log('Sending chat request to backend:', API_URL)
+      const controller = new AbortController()
+      const timeoutId = setTimeout(() => controller.abort(), 25000) // 25s timeout
+      
       const response = await fetch(`${API_URL}/api/chat`, {
         method: 'POST',
         headers: {
@@ -80,7 +83,10 @@ export function ChatInterface() {
         body: JSON.stringify({
           message: messageContent,
         }),
+        signal: controller.signal,
       })
+      
+      clearTimeout(timeoutId)
 
       console.log('Response status:', response.status)
       
@@ -207,9 +213,9 @@ export function ChatInterface() {
   }
 
   return (
-    <div className="h-full flex flex-col bg-gradient-to-br from-background via-background to-primary/5">
+    <div className="h-full flex flex-col bg-gradient-to-br from-slate-900/50 via-slate-800/30 to-slate-900/50 backdrop-blur-sm">
       {/* Messages Area */}
-      <ScrollArea className="flex-1 p-6" ref={scrollRef}>
+      <ScrollArea className="flex-1 p-8 custom-scrollbar" ref={scrollRef}>
         <div className="max-w-4xl mx-auto space-y-4">
           <AnimatePresence>
             {messages.map((message) => (
@@ -235,10 +241,10 @@ export function ChatInterface() {
                 </Avatar>
 
                 <Card
-                  className={`flex-1 max-w-[80%] p-4 shadow-lg transition-all duration-300 hover:shadow-xl ${
+                  className={`flex-1 max-w-[80%] p-5 shadow-2xl transition-all duration-300 hover:shadow-primary/20 border-0 ${
                     message.role === 'user'
-                      ? 'bg-gradient-to-br from-primary to-purple-600 text-primary-foreground border-primary/20'
-                      : 'bg-gradient-to-br from-card to-card/50 backdrop-blur-xl border-border/50'
+                      ? 'bg-gradient-to-br from-primary via-purple-500 to-pink-500 text-white'
+                      : 'bg-gradient-to-br from-white/10 to-white/5 backdrop-blur-xl text-slate-100'
                   }`}
                 >
                   {message.agent && (

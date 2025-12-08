@@ -191,11 +191,11 @@ async def chat(
         # Get agent
         agent = agent_router.get_agent(agent_type)
         
-        # Process with RAG (handle empty results gracefully)
+        # Process with RAG (handle empty results gracefully) - reduced for speed
         relevant_docs = []
         try:
             pipeline = get_rag_pipeline()
-            relevant_docs = await pipeline.search(request.message, k=3)
+            relevant_docs = await pipeline.search(request.message, k=2)  # Only 2 docs for speed
         except Exception as rag_error:
             logger.warning(f"RAG search failed: {str(rag_error)}, continuing without context")
         

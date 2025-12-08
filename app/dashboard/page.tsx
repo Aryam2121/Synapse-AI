@@ -72,31 +72,37 @@ function DashboardPage() {
   }
 
   return (
-    <div className="flex h-screen bg-background">
+    <div className="flex h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 relative overflow-hidden">
+      {/* Animated background */}
+      <div className="absolute inset-0 overflow-hidden pointer-events-none opacity-30">
+        <div className="absolute top-1/4 right-1/4 w-96 h-96 bg-primary rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-blob"></div>
+        <div className="absolute bottom-1/3 left-1/3 w-96 h-96 bg-purple-500 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-blob animation-delay-2000"></div>
+      </div>
+
       <CommandPalette onNavigate={(view) => setCurrentView(view as View)} />
       
       {/* Sidebar */}
-      <div className={`${sidebarOpen ? 'w-64' : 'w-0'} transition-all duration-300 overflow-hidden`}>
+      <div className={`${sidebarOpen ? 'w-72' : 'w-0'} transition-all duration-300 overflow-hidden relative z-10`}>
         <Sidebar currentView={currentView} onViewChange={(view) => setCurrentView(view as View)} />
       </div>
 
       {/* Main Content */}
-      <div className="flex-1 flex flex-col overflow-hidden">
+      <div className="flex-1 flex flex-col overflow-hidden relative z-10">
         {/* Header */}
-        <header className="border-b border-border/50 px-6 py-4 flex items-center gap-4 bg-gradient-to-r from-card to-card/95 backdrop-blur-xl">
+        <header className="border-b border-white/10 px-8 py-5 flex items-center gap-4 bg-black/20 backdrop-blur-xl shadow-xl">
           <Button
             variant="ghost"
             size="icon"
             onClick={() => setSidebarOpen(!sidebarOpen)}
-            className="hover:bg-primary/10 transition-colors"
+            className="hover:bg-white/10 transition-colors text-white h-10 w-10"
           >
-            <Menu className="h-5 w-5" />
+            <Menu className="h-6 w-6" />
           </Button>
-          <h1 className="text-2xl font-bold capitalize bg-gradient-to-r from-primary to-purple-600 bg-clip-text text-transparent">{currentView}</h1>
+          <h1 className="text-3xl font-black capitalize bg-gradient-to-r from-white via-purple-200 to-pink-200 bg-clip-text text-transparent tracking-tight">{currentView}</h1>
         </header>
 
         {/* View Content */}
-        <main className="flex-1 overflow-hidden">
+        <main className="flex-1 overflow-hidden bg-gradient-to-br from-slate-900/50 to-slate-800/50 backdrop-blur-sm">
           {renderView()}
         </main>
       </div>

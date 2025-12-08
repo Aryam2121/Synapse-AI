@@ -36,22 +36,22 @@ export function Sidebar({ currentView, onViewChange }: SidebarProps) {
   const { user, logout } = useAuth()
   
   return (
-    <div className="h-full bg-gradient-to-b from-card via-card to-card/95 border-r border-border/50 backdrop-blur-xl flex flex-col">
+    <div className="h-full bg-gradient-to-b from-slate-900 via-slate-800 to-slate-900 border-r border-white/10 backdrop-blur-xl flex flex-col shadow-2xl">
       {/* Logo */}
-      <div className="p-4 border-b border-border/50">
+      <div className="p-5 border-b border-white/10 bg-black/20">
         <div className="flex items-center justify-between gap-3">
           <div className="flex items-center gap-3">
-            <div className="bg-gradient-to-br from-primary to-purple-600 rounded-xl p-2.5 shadow-lg">
-              <Brain className="h-6 w-6 text-primary-foreground" />
+            <div className="bg-gradient-to-br from-primary via-purple-500 to-pink-500 rounded-2xl p-3 shadow-xl animate-pulse-slow">
+              <Brain className="h-7 w-7 text-white" />
             </div>
-            <span className="font-bold text-xl bg-gradient-to-r from-primary to-purple-600 bg-clip-text text-transparent">Synapse AI</span>
+            <span className="font-black text-xl bg-gradient-to-r from-white via-purple-200 to-pink-200 bg-clip-text text-transparent">Synapse AI</span>
           </div>
           <NotificationCenter />
         </div>
       </div>
 
       {/* Menu Items */}
-      <nav className="flex-1 p-3 space-y-2 overflow-y-auto">
+      <nav className="flex-1 p-4 space-y-2 overflow-y-auto custom-scrollbar">
         {menuItems.map((item) => {
           const Icon = item.icon
           const isActive = currentView === item.id
@@ -60,14 +60,17 @@ export function Sidebar({ currentView, onViewChange }: SidebarProps) {
               key={item.id}
               variant={isActive ? 'default' : 'ghost'}
               className={cn(
-                "w-full justify-start transition-all duration-200",
-                isActive && "bg-gradient-to-r from-primary to-purple-600 text-primary-foreground shadow-lg scale-105",
-                !isActive && "hover:bg-primary/10 hover:translate-x-1"
+                "w-full justify-start transition-all duration-300 group relative overflow-hidden",
+                isActive && "bg-gradient-to-r from-primary via-purple-500 to-pink-500 text-white shadow-xl scale-[1.02] hover:scale-105",
+                !isActive && "hover:bg-white/10 hover:translate-x-2 text-slate-300 hover:text-white"
               )}
               onClick={() => onViewChange(item.id)}
             >
-              <Icon className={cn("h-5 w-5 mr-3", isActive && "animate-pulse")} />
-              <span className="font-medium">{item.label}</span>
+              {isActive && (
+                <div className="absolute inset-0 bg-gradient-to-r from-primary/50 via-purple-500/50 to-pink-500/50 blur-xl opacity-50 group-hover:opacity-75 transition-opacity"></div>
+              )}
+              <Icon className={cn("h-5 w-5 mr-3 relative z-10", isActive && "animate-pulse")} />
+              <span className="font-semibold relative z-10">{item.label}</span>
             </Button>
           )
         })}
