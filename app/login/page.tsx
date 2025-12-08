@@ -27,7 +27,14 @@ export default function LoginPage() {
     try {
       await login(email, password)
     } catch (err: any) {
-      setError(err.message || 'Login failed')
+      // Better error messages
+      if (err.message.includes('401') || err.message.includes('credentials')) {
+        setError('Incorrect email or password. Please try again.')
+      } else if (err.message.includes('network') || err.message.includes('fetch')) {
+        setError('Cannot connect to server. Please check your internet connection.')
+      } else {
+        setError(err.message || 'Login failed. Please try again or register a new account.')
+      }
     } finally {
       setIsLoading(false)
     }

@@ -19,6 +19,7 @@ interface AuthContextType {
   login: (email: string, password: string) => Promise<void>
   register: (name: string, email: string, password: string) => Promise<void>
   logout: () => void
+  refreshToken: () => Promise<boolean>
   isLoading: boolean
   isAuthenticated: boolean
 }
@@ -54,7 +55,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       })
 
       if (!response.ok) {
-        const error = await response.json()
+        const error = await response.json().catch(() => ({ detail: 'Login failed' }))
+        if (response.status === 401) {
+          throw new Error('Incorrect email or password')
+        }
         throw new Error(error.detail || 'Login failed')
       }
 
@@ -63,9 +67,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setUser(data.user)
       setToken(data.token.access_token)
       
-      // Store in localStorage
+      // Store in localStorage with timestamp
       localStorage.setItem('auth_token', data.token.access_token)
       localStorage.setItem('auth_user', JSON.stringify(data.user))
+      localStorage.setItem('auth_timestamp', Date.now().toString())
 
       router.push('/dashboard')
     } catch (error) {
@@ -103,6 +108,34 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }
 
+  const refreshToken = async (): Promise<boolean> => {
+    try {
+      const storedToken = localStorage.getItem('auth_token')
+      if (!storedToken) return false
+
+      // Verify token is still valid by calling /me endpoint
+      const response = await fetch(API_ENDPOINTS.ME, {
+        headers: {
+          'Authorization': `Bearer ${storedToken}`,
+        },
+      })
+
+      if (response.ok) {
+        const userData = await response.json()
+        setUser(userData)
+        setToken(storedToken)
+        return true
+      } else {
+        // Token expired or invalid, clear it
+        logout()
+        return false
+      }
+    } catch (error) {
+      logout()
+      return false
+    }
+  }
+
   const logout = () => {
     setUser(null)
     setToken(null)
@@ -111,12 +144,41 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     router.push('/login')
   }
 
+  // Auto-refresh token on mount and periodically
+  useEffect(() => {
+    const checkAuth = async () => {
+      if (token) {
+        // Check if token is too old (more than 6 days)
+        const timestamp = localStorage.getItem('auth_timestamp')
+        if (timestamp) {
+          const age = Date.now() - parseInt(timestamp)
+          const sixDays = 6 * 24 * 60 * 60 * 1000
+          
+          if (age > sixDays) {
+            // Token is about to expire, verify it
+            const valid = await refreshToken()
+            if (!valid) {
+              alert('Your session has expired. Please login again.')
+            }
+          }
+        }
+      }
+    }
+    
+    checkAuth()
+    
+    // Check auth every hour
+    const interval = setInterval(checkAuth, 60 * 60 * 1000)
+    return () => clearInterval(interval)
+  }, [token])
+
   const value = {
     user,
     token,
     login,
     register,
     logout,
+    refreshToken,
     isLoading,
     isAuthenticated: !!user && !!token,
   }
