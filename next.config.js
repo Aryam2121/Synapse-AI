@@ -6,7 +6,6 @@ const nextConfig = {
   // Faster builds and optimizations
   experimental: {
     optimizePackageImports: ['lucide-react', 'framer-motion'],
-    optimizeCss: true,
   },
   
   // Speed up dev server
