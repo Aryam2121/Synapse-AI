@@ -69,10 +69,13 @@ export function ChatInterface() {
         throw new Error('Please log in to use chat')
       }
 
-      // Call backend API with timeout for faster failures
+      // Call backend API with timeout
       console.log('Sending chat request to backend:', API_URL)
       const controller = new AbortController()
-      const timeoutId = setTimeout(() => controller.abort(), 20000) // 20s timeout
+      const timeoutId = setTimeout(() => {
+        console.log('Request timeout - aborting')
+        controller.abort()
+      }, 60000) // 60s timeout for Groq API
       
       const response = await fetch(`${API_URL}/api/chat`, {
         method: 'POST',
@@ -108,10 +111,24 @@ export function ChatInterface() {
       
       setMessages((prev) => [...prev, aiMessage])
     } catch (error: any) {
+      console.error('Chat error:', error)
+      
+      let errorContent = '❌ **Error:** '
+      
+      if (error.name === 'AbortError') {
+        errorContent += 'Request timeout (60s)\n\nThe AI is taking longer than expected. This could mean:\n- Groq API is slow or rate-limited\n- Backend is processing a complex request\n- Network connection is slow\n\nTry again in a moment.'
+      } else if (error.message.includes('Failed to fetch')) {
+        errorContent += 'Cannot connect to backend\n\nMake sure:\n- Backend is running at: ' + API_URL + '\n- No CORS issues\n- Internet connection is active'
+      } else if (error.message.includes('401')) {
+        errorContent += 'Authentication failed\n\nPlease log out and log back in.'
+      } else {
+        errorContent += error.message + '\n\nPlease check:\n- Backend server is running\n- Groq API key is configured on Render\n- Check /api/config-check endpoint'
+      }
+      
       const errorMessage: Message = {
         id: (Date.now() + 1).toString(),
         role: 'assistant',
-        content: `❌ **Error:** ${error.message}\n\nPlease make sure:\n- Backend server is running\n- You're logged in\n- AI service is configured (Groq/Ollama)`,
+        content: errorContent,
         timestamp: new Date(),
         agent: 'System',
       }

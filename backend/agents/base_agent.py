@@ -26,13 +26,13 @@ class BaseAgent:
             model = os.getenv("GROQ_MODEL", "llama-3.1-8b-instant")  # Fastest model
             self.llm = ChatGroq(
                 model=model,
-                temperature=0.3,  # Even lower for faster, more focused responses
+                temperature=0.3,  # Lower for faster, more focused responses
                 api_key=groq_api_key,
                 streaming=True,
-                max_tokens=1024,  # Further reduced for faster responses
-                timeout=15,  # Even shorter timeout
-                max_retries=1,  # Single retry for faster failure
-                request_timeout=15  # Additional timeout parameter
+                max_tokens=1024,  # Reduced for faster responses
+                timeout=45,  # Increased timeout for Groq API
+                max_retries=2,  # Allow retries for reliability
+                request_timeout=45  # Match timeout
             )
             print(f"✓ Using FASTEST Groq model: {model}")
             print(f"✓ Groq API Key: {groq_api_key[:10]}...{groq_api_key[-4:]}")
@@ -87,23 +87,27 @@ class BaseAgent:
     ) -> Dict[str, Any]:
         """Process a message and return a response"""
         
+        # Track if this is a new conversation
+        is_new_conversation = conversation_id is None
+        
         if conversation_id is None:
             conversation_id = str(uuid.uuid4())
         
-        # Check cache for non-conversational queries
-        cache_key = self._get_cache_key(message, context)
-        cached_response = self._get_cached_response(cache_key)
-        if cached_response and not conversation_id:
-            print(f"✓ CACHE HIT - Returning cached response for: {message[:50]}...")
-            return {
-                "content": cached_response,
-                "conversation_id": conversation_id,
-                "agent": self.name,
-                "timestamp": datetime.now().isoformat(),
-                "cached": True
-            }
+        # Check cache only for new conversations (not ongoing chats)
+        # Disable cache temporarily to ensure Groq API is being called
+        # cache_key = self._get_cache_key(message, context)
+        # cached_response = self._get_cached_response(cache_key)
+        # if cached_response and is_new_conversation:
+        #     print(f"[CACHE HIT] Returning cached response for: {message[:50]}...")
+        #     return {
+        #         "content": cached_response,
+        #         "conversation_id": conversation_id,
+        #         "agent": self.name,
+        #         "timestamp": datetime.now().isoformat(),
+        #         "cached": True
+        #     }
         
-        print(f"✓ CALLING GROQ API for: {message[:50]}...")
+        print(f"[GROQ API] Calling Groq for: {message[:50]}...")
         
         # Get conversation history
         if conversation_id not in self.conversation_history:
@@ -132,8 +136,9 @@ class BaseAgent:
         ai_message = response.generations[0][0].text
         print(f"[GROQ RESPONSE] Received {len(ai_message)} chars from Groq API")
         
-        # Cache the response for future similar queries
-        self.response_cache[cache_key] = (ai_message, datetime.now())
+        # Cache disabled temporarily to verify Groq API calls
+        # cache_key = self._get_cache_key(message, context)
+        # self.response_cache[cache_key] = (ai_message, datetime.now())
         
         # Clean old cache entries (keep last 100)
         if len(self.response_cache) > 100:
