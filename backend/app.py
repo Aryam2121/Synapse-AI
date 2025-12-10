@@ -112,10 +112,14 @@ app.add_middleware(
 # Add GZip compression for faster responses
 app.add_middleware(GZipMiddleware, minimum_size=1000)
 
-# Add performance monitoring middleware (only in production)
+# Add performance monitoring middleware (only in production, optional)
 if os.getenv("ENABLE_PERFORMANCE_MONITORING", "false").lower() == "true":
-    from utils.performance import PerformanceMiddleware
-    app.add_middleware(PerformanceMiddleware)
+    try:
+        from utils.performance import PerformanceMiddleware
+        app.add_middleware(PerformanceMiddleware)
+        logger.info("✓ Performance monitoring enabled")
+    except Exception as e:
+        logger.warning(f"⚠️ Could not load performance middleware: {e}")
 
 # Initialize components
 # Use lazy loading for RAG pipeline to avoid startup timeout

@@ -13,12 +13,14 @@ class AgentRouter:
     """
     
     def __init__(self):
-        self.agents = {
-            "code": CodeAgent(),
-            "document": DocumentAgent(),
-            "task": TaskAgent(),
-            "research": ResearchAgent(),
-            "general": GeneralAgent(),
+        # Lazy initialization - don't create agents until needed
+        self.agents = {}
+        self._agent_classes = {
+            "code": CodeAgent,
+            "document": DocumentAgent,
+            "task": TaskAgent,
+            "research": ResearchAgent,
+            "general": GeneralAgent,
         }
         
         # Keywords for each agent type
@@ -81,8 +83,17 @@ class AgentRouter:
         return best_agent, confidence
     
     def get_agent(self, agent_type: str):
-        """Get agent instance by type"""
-        return self.agents.get(agent_type, self.agents["general"])
+        """Get agent instance by type (lazy initialization)"""
+        # Create agent if not already created
+        if agent_type not in self.agents:
+            if agent_type in self._agent_classes:
+                self.agents[agent_type] = self._agent_classes[agent_type]()
+            else:
+                # Fallback to general agent
+                if "general" not in self.agents:
+                    self.agents["general"] = self._agent_classes["general"]()
+                return self.agents["general"]
+        return self.agents[agent_type]
     
     def list_agents(self) -> Dict[str, Any]:
         """List all available agents with their capabilities"""
