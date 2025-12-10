@@ -79,8 +79,11 @@ export default function LoginPage() {
               Welcome back
             </CardTitle>
             <CardDescription className="text-center text-slate-300 text-base">
-              Sign in to continue your AI journey
+              Sign in to access your AI workspace
             </CardDescription>
+            <div className="text-xs text-center text-yellow-300/80 mt-2 bg-yellow-500/10 border border-yellow-500/20 rounded-lg p-2">
+              ⚡ First login may take 30-60s (Render free tier cold start)
+            </div>
           </CardHeader>
           <CardContent>
             <form onSubmit={handleSubmit} className="space-y-4">

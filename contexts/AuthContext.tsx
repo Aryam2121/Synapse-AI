@@ -46,13 +46,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const login = async (email: string, password: string) => {
     try {
+      // Add timeout for slow backend (Render cold start)
+      const controller = new AbortController()
+      const timeoutId = setTimeout(() => controller.abort(), 30000) // 30s timeout
+      
       const response = await fetch(API_ENDPOINTS.LOGIN, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({ email, password }),
+        signal: controller.signal,
       })
+      
+      clearTimeout(timeoutId)
 
       if (!response.ok) {
         const error = await response.json().catch(() => ({ detail: 'Login failed' }))
@@ -73,20 +80,30 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       localStorage.setItem('auth_timestamp', Date.now().toString())
 
       router.push('/dashboard')
-    } catch (error) {
+    } catch (error: any) {
+      if (error.name === 'AbortError') {
+        throw new Error('⏱️ Login timeout - Backend is waking up (Render cold start). Please wait 30s and try again.')
+      }
       throw error
     }
   }
 
   const register = async (name: string, email: string, password: string) => {
     try {
+      // Add timeout for slow backend (Render cold start)
+      const controller = new AbortController()
+      const timeoutId = setTimeout(() => controller.abort(), 30000) // 30s timeout
+      
       const response = await fetch(API_ENDPOINTS.REGISTER, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({ name, email, password }),
+        signal: controller.signal,
       })
+      
+      clearTimeout(timeoutId)
 
       if (!response.ok) {
         const error = await response.json()
@@ -103,7 +120,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       localStorage.setItem('auth_user', JSON.stringify(data.user))
 
       router.push('/dashboard')
-    } catch (error) {
+    } catch (error: any) {
+      if (error.name === 'AbortError') {
+        throw new Error('⏱️ Registration timeout - Backend is waking up (Render cold start). Please wait 30s and try again.')
+      }
       throw error
     }
   }
