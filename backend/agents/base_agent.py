@@ -19,7 +19,11 @@ class BaseAgent:
         # Initialize LLM - Priority: Groq (free) > OpenAI > Ollama (local dev)
         groq_api_key = os.getenv("GROQ_API_KEY")
         openai_api_key = os.getenv("OPENAI_API_KEY")
-        use_ollama = os.getenv("USE_OLLAMA", "true").lower() == "true"
+        use_ollama = os.getenv("USE_OLLAMA", "false").lower() == "true"  # Default to false for production
+        
+        print(f"[AI CONFIG] Groq Key: {'SET' if groq_api_key else 'NOT SET'}")
+        print(f"[AI CONFIG] OpenAI Key: {'SET' if openai_api_key else 'NOT SET'}")
+        print(f"[AI CONFIG] Use Ollama: {use_ollama}")
         
         if groq_api_key:
             # FREE Cloud: Use Groq (recommended for production)

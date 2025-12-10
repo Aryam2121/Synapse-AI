@@ -220,21 +220,26 @@ async def config_check():
     """Check which AI provider is configured - useful for debugging"""
     groq_key = os.getenv("GROQ_API_KEY")
     openai_key = os.getenv("OPENAI_API_KEY")
-    use_ollama = os.getenv("USE_OLLAMA", "true").lower() == "true"
+    use_ollama_env = os.getenv("USE_OLLAMA", "false")
+    use_ollama = use_ollama_env.lower() == "true"
     
     config = {
         "groq_configured": bool(groq_key),
-        "groq_key_preview": f"{groq_key[:10]}...{groq_key[-4:]}" if groq_key else "NOT SET",
+        "groq_key_preview": f"{groq_key[:10]}...{groq_key[-4:]}" if groq_key else "❌ NOT SET",
+        "groq_key_length": len(groq_key) if groq_key else 0,
         "openai_configured": bool(openai_key),
+        "use_ollama_env_var": use_ollama_env,
         "ollama_enabled": use_ollama,
         "active_provider": "groq" if groq_key else ("openai" if openai_key else ("ollama" if use_ollama else "NONE - ERROR!")),
         "groq_model": os.getenv("GROQ_MODEL", "llama-3.1-8b-instant"),
         "database_url_set": bool(os.getenv("DATABASE_URL")),
         "frontend_url": os.getenv("FRONTEND_URL", "not set"),
+        "all_env_vars": list(os.environ.keys()),  # Show all env var names
         "timestamp": datetime.now().isoformat()
     }
     
     logger.info(f"Config check requested - Active provider: {config['active_provider']}")
+    logger.info(f"Groq configured: {config['groq_configured']}, Key length: {config['groq_key_length']}")
     return config
 
 # Chat Endpoint
