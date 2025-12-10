@@ -92,7 +92,8 @@ app.include_router(knowledge_base_router)
 allowed_origins = [
     "http://localhost:3000",
     "http://localhost:3001",
-    "https://synapse-ai-theta.vercel.app",  # Production Vercel URL
+    "https://synapse-ai-theta.vercel.app",
+    "http://127.0.0.1:5500/",  # Production Vercel URL
 ]
 
 # Add production frontend URL from environment variable
