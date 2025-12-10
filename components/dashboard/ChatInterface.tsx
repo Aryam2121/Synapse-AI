@@ -27,7 +27,7 @@ export function ChatInterface() {
     {
       id: '1',
       role: 'assistant',
-      content: '👋 **Welcome to Synapse AI!**\n\nI\'m your intelligent assistant powered by advanced AI. I can help you with:\n\n✨ **Document Intelligence** - Analyze, summarize, and extract insights\n💻 **Code Analysis** - Review, debug, and improve your code\n✅ **Task Management** - Plan, organize, and track your work\n🔍 **Research Assistant** - Find information and answer questions\n📊 **Data Insights** - Analyze and visualize your data\n\nWhat would you like to work on today?',
+      content: '👋 **Welcome to Synapse AI!**\n\nI\'m your intelligent assistant powered by advanced AI. I can help you with:\n\n✨ **Document Intelligence** - Analyze, summarize, and extract insights\n💻 **Code Analysis** - Review, debug, and improve your code\n✅ **Task Management** - Plan, organize, and track your work\n🔍 **Research Assistant** - Find information and answer questions\n📊 **Data Insights** - Analyze and visualize your data\n\n⚠️ **Note:** First message may take 30-60s as the backend wakes up (Render free tier).\n\nWhat would you like to work on today?',
       timestamp: new Date(),
       agent: 'Synapse AI',
     },
@@ -37,6 +37,7 @@ export function ChatInterface() {
   const [copiedId, setCopiedId] = useState<string | null>(null)
   const [isRecording, setIsRecording] = useState(false)
   const [attachedFiles, setAttachedFiles] = useState<File[]>([])
+  const [backendReady, setBackendReady] = useState(false)
   const scrollRef = useRef<HTMLDivElement>(null)
   const mediaRecorderRef = useRef<MediaRecorder | null>(null)
 
@@ -45,6 +46,28 @@ export function ChatInterface() {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight
     }
   }, [messages])
+
+  // Wake up backend on mount
+  useEffect(() => {
+    const wakeBackend = async () => {
+      try {
+        console.log('Waking up backend...')
+        const response = await fetch(`${API_URL}/health`, { 
+          method: 'GET',
+          signal: AbortSignal.timeout(10000) // 10s timeout for health check
+        })
+        if (response.ok) {
+          console.log('Backend is ready!')
+          setBackendReady(true)
+        }
+      } catch (error) {
+        console.log('Backend is waking up, may take 30-60s...')
+        // Retry after 5 seconds
+        setTimeout(wakeBackend, 5000)
+      }
+    }
+    wakeBackend()
+  }, [])
 
   const handleSend = async () => {
     if (!input.trim() || isLoading) return
@@ -69,13 +92,26 @@ export function ChatInterface() {
         throw new Error('Please log in to use chat')
       }
 
-      // Call backend API with timeout
+      // Show warning if backend might be cold starting
+      if (!backendReady) {
+        const warmupMessage: Message = {
+          id: Date.now().toString() + '-warmup',
+          role: 'assistant',
+          content: '⏳ **Backend is starting up...**\n\nRender free tier requires 30-60 seconds to wake up from sleep. Please wait...',
+          timestamp: new Date(),
+          agent: 'System',
+        }
+        setMessages((prev) => [...prev, warmupMessage])
+      }
+
+      // Call backend API with extended timeout for cold starts
       console.log('Sending chat request to backend:', API_URL)
       const controller = new AbortController()
+      const timeout = backendReady ? 60000 : 120000 // 2 minutes for cold start
       const timeoutId = setTimeout(() => {
         console.log('Request timeout - aborting')
         controller.abort()
-      }, 60000) // 60s timeout for Groq API
+      }, timeout)
       
       const response = await fetch(`${API_URL}/api/chat`, {
         method: 'POST',
@@ -101,6 +137,9 @@ export function ChatInterface() {
 
       const data = await response.json()
       
+      // Remove warmup message if it exists
+      setMessages((prev) => prev.filter(m => !m.id.includes('-warmup')))
+      
       const aiMessage: Message = {
         id: (Date.now() + 1).toString(),
         role: 'assistant',
@@ -110,19 +149,27 @@ export function ChatInterface() {
       }
       
       setMessages((prev) => [...prev, aiMessage])
+      setBackendReady(true) // Backend is definitely ready now
     } catch (error: any) {
       console.error('Chat error:', error)
+      
+      // Remove warmup message if it exists
+      setMessages((prev) => prev.filter(m => !m.id.includes('-warmup')))
       
       let errorContent = '❌ **Error:** '
       
       if (error.name === 'AbortError') {
-        errorContent += 'Request timeout (60s)\n\nThe AI is taking longer than expected. This could mean:\n- Groq API is slow or rate-limited\n- Backend is processing a complex request\n- Network connection is slow\n\nTry again in a moment.'
+        if (backendReady) {
+          errorContent += 'Request timeout (60s)\n\nGroq API is not responding. Possible reasons:\n\n1. **Groq API Key Not Set on Render**\n   - Check environment variables in Render dashboard\n   - Should be: GROQ_API_KEY=gsk_0ashmi...\n\n2. **Groq API Rate Limited**\n   - Check your Groq dashboard usage\n\n3. **Backend Processing Issue**\n   - Check Render logs for errors\n\n**Debug:** Visit ' + API_URL + '/api/config-check'
+        } else {
+          errorContent += 'Backend cold start timeout (2 minutes)\n\nRender free tier is taking too long to wake up.\n\n**Solutions:**\n- Wait another minute and try again\n- Check Render dashboard for deployment status\n- Verify backend is not crashed\n\n**Backend URL:** ' + API_URL
+        }
       } else if (error.message.includes('Failed to fetch')) {
-        errorContent += 'Cannot connect to backend\n\nMake sure:\n- Backend is running at: ' + API_URL + '\n- No CORS issues\n- Internet connection is active'
+        errorContent += 'Cannot connect to backend\n\n**Check:**\n- Backend URL: ' + API_URL + '\n- Render service is running\n- Internet connection active\n- No firewall blocking\n\n**Visit:** ' + API_URL + '/health'
       } else if (error.message.includes('401')) {
-        errorContent += 'Authentication failed\n\nPlease log out and log back in.'
+        errorContent += 'Authentication failed\n\nYour session expired. Please log out and log back in.'
       } else {
-        errorContent += error.message + '\n\nPlease check:\n- Backend server is running\n- Groq API key is configured on Render\n- Check /api/config-check endpoint'
+        errorContent += error.message + '\n\n**Troubleshooting:**\n1. Check Render logs for backend errors\n2. Verify GROQ_API_KEY environment variable\n3. Visit: ' + API_URL + '/api/config-check\n4. Check Groq dashboard for API usage'
       }
       
       const errorMessage: Message = {
