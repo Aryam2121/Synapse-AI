@@ -57,9 +57,16 @@ app = FastAPI(
 # Startup event to initialize database
 @app.on_event("startup")
 async def startup_event():
-    logger.info("Initializing database...")
-    await init_db()
-    logger.info("Database initialized successfully")
+    try:
+        logger.info("Starting Synapse AI Backend...")
+        logger.info("Initializing database...")
+        await init_db()
+        logger.info("✓ Database initialized successfully")
+        logger.info("✓ Backend is ready to accept requests")
+    except Exception as e:
+        logger.error(f"❌ Startup error: {e}")
+        logger.error("Backend will still run but some features may not work")
+        # Don't crash the app, let it start anyway
 
 # Include authentication routes
 app.include_router(auth_router)
@@ -181,18 +188,31 @@ async def startup_event():
     logger.info("RAG Pipeline ready")
     logger.info("Multi-Agent System ready")
 
-# Health Check with caching
-@app.get("/health")
-@lru_cache(maxsize=1)
-async def health_check():
-    return Response(
-        content='{"status":"healthy","version":"1.0.0"}',
-        media_type="application/json",
-        headers={
-            "Cache-Control": "public, max-age=60",
-            "X-Response-Time": "instant"
+# Root endpoint
+@app.get("/")
+async def root():
+    """Root endpoint to verify backend is running"""
+    return {
+        "app": "Synapse AI Backend",
+        "status": "running",
+        "version": "1.0.0",
+        "endpoints": {
+            "health": "/health",
+            "config": "/api/config-check",
+            "chat": "/api/chat",
+            "docs": "/docs"
         }
-    )
+    }
+
+# Health Check - Simple and fast, no caching to avoid issues
+@app.get("/health")
+async def health_check():
+    """Lightweight health check that always responds"""
+    return {
+        "status": "healthy",
+        "version": "1.0.0",
+        "timestamp": datetime.now().isoformat()
+    }
 
 # Configuration Check Endpoint
 @app.get("/api/config-check")

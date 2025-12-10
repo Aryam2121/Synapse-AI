@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Synapse AI Backend Test</title>
+    <style>
+        body {
+            font-family: monospace;
+            padding: 20px;
+            background: #1a1a1a;
+            color: #00ff00;
+        }
+        .test {
+            margin: 10px 0;
+            padding: 10px;
+            border: 1px solid #333;
+            background: #0a0a0a;
+        }
+        .success { color: #00ff00; }
+        .error { color: #ff0000; }
+        .waiting { color: #ffff00; }
+        button {
+            background: #333;
+            color: #00ff00;
+            border: 1px solid #00ff00;
+            padding: 10px 20px;
+            cursor: pointer;
+            font-family: monospace;
+            margin: 5px;
+        }
+        button:hover {
+            background: #00ff00;
+            color: #000;
+        }
+        pre {
+            background: #000;
+            padding: 10px;
+            overflow-x: auto;
+        }
+    </style>
+</head>
+<body>
+    <h1>🔧 Synapse AI Backend Diagnostic Tool</h1>
+    <p>Backend URL: <strong>https://synapse-ai-wr9n.onrender.com</strong></p>
+    
+    <button onclick="testRoot()">Test 1: Root Endpoint (/)</button>
+    <button onclick="testHealth()">Test 2: Health Check</button>
+    <button onclick="testConfig()">Test 3: Config Check</button>
+    <button onclick="testAll()">Run All Tests</button>
+    
+    <div id="results"></div>
+
+    <script>
+        const API_URL = 'https://synapse-ai-wr9n.onrender.com';
+        
+        function log(message, className = '') {
+            const results = document.getElementById('results');
+            const div = document.createElement('div');
+            div.className = 'test ' + className;
+            div.innerHTML = message;
+            results.appendChild(div);
+        }
+
+        async function testRoot() {
+            log('Testing root endpoint (/)...', 'waiting');
+            const start = Date.now();
+            try {
+                const response = await fetch(`${API_URL}/`, {
+                    method: 'GET',
+                    signal: AbortSignal.timeout(30000)
+                });
+                const duration = Date.now() - start;
+                const data = await response.json();
+                log(`✓ Root endpoint working! (${duration}ms)<pre>${JSON.stringify(data, null, 2)}</pre>`, 'success');
+            } catch (error) {
+                const duration = Date.now() - start;
+                log(`✗ Root endpoint failed after ${duration}ms: ${error.message}`, 'error');
+            }
+        }
+
+        async function testHealth() {
+            log('Testing health endpoint (/health)...', 'waiting');
+            const start = Date.now();
+            try {
+                const response = await fetch(`${API_URL}/health`, {
+                    method: 'GET',
+                    signal: AbortSignal.timeout(30000)
+                });
+                const duration = Date.now() - start;
+                const data = await response.json();
+                log(`✓ Health check passed! (${duration}ms)<pre>${JSON.stringify(data, null, 2)}</pre>`, 'success');
+            } catch (error) {
+                const duration = Date.now() - start;
+                log(`✗ Health check failed after ${duration}ms: ${error.message}`, 'error');
+            }
+        }
+
+        async function testConfig() {
+            log('Testing config endpoint (/api/config-check)...', 'waiting');
+            const start = Date.now();
+            try {
+                const response = await fetch(`${API_URL}/api/config-check`, {
+                    method: 'GET',
+                    signal: AbortSignal.timeout(30000)
+                });
+                const duration = Date.now() - start;
+                const data = await response.json();
+                log(`✓ Config check passed! (${duration}ms)<pre>${JSON.stringify(data, null, 2)}</pre>`, 'success');
+                
+                if (!data.groq_configured) {
+                    log('⚠️ WARNING: GROQ_API_KEY is NOT configured on Render!', 'error');
+                }
+            } catch (error) {
+                const duration = Date.now() - start;
+                log(`✗ Config check failed after ${duration}ms: ${error.message}`, 'error');
+            }
+        }
+
+        async function testAll() {
+            document.getElementById('results').innerHTML = '';
+            log('=== Starting Full Backend Diagnostic ===', 'waiting');
+            await testRoot();
+            await new Promise(resolve => setTimeout(resolve, 1000));
+            await testHealth();
+            await new Promise(resolve => setTimeout(resolve, 1000));
+            await testConfig();
+            log('=== Diagnostic Complete ===', 'success');
+        }
+
+        // Auto-run on load
+        window.addEventListener('load', () => {
+            log('Page loaded. Click "Run All Tests" or test individually.', 'waiting');
+        });
+    </script>
+</body>
+</html>
