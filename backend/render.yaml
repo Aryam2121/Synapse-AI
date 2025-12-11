@@ -14,6 +14,8 @@ services:
         value: llama-3.1-8b-instant
       - key: USE_OLLAMA
         value: false
+      - key: OPENAI_API_KEY
+        sync: false  # Optional: For RAG embeddings (if not set, RAG will be disabled)
       - key: SECRET_KEY
         generateValue: true
       - key: ALGORITHM

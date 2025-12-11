@@ -1,7 +1,8 @@
 from typing import List, Dict, Any, Optional
 from langchain_openai import OpenAIEmbeddings
 from langchain_community.embeddings import OllamaEmbeddings
-from langchain_huggingface import HuggingFaceEmbeddings
+# NOTE: HuggingFaceEmbeddings removed - causes 1GB+ CUDA downloads on Render
+# Use OpenAI embeddings or provide OPENAI_API_KEY
 from langchain_groq import ChatGroq
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_community.vectorstores import Pinecone, Chroma
@@ -47,13 +48,17 @@ class RAGPipeline:
                 model=ollama_model
             )
         else:
-            # For Groq-only setup, use HuggingFace sentence-transformers (free, runs locally)
-            logger.info("Using HuggingFace embeddings (sentence-transformers)")
-            self.embeddings = HuggingFaceEmbeddings(
-                model_name="all-MiniLM-L6-v2",  # Fast, lightweight model
-                model_kwargs={'device': 'cpu'},
-                encode_kwargs={'normalize_embeddings': True}
-            )
+            # Fallback: Use OpenAI with a placeholder (RAG will be disabled if no key)
+            # This prevents importing heavy HuggingFace/PyTorch CUDA dependencies
+            logger.warning("No embedding provider configured. RAG features will be limited.")
+            logger.warning("Set OPENAI_API_KEY for embeddings, or USE_OLLAMA=true for local embeddings")
+            # Use a dummy OpenAI embeddings that will fail gracefully
+            try:
+                self.embeddings = OpenAIEmbeddings(
+                    openai_api_key="dummy-key-rag-disabled"
+                )
+            except:
+                self.embeddings = None
         
         self.text_splitter = RecursiveCharacterTextSplitter(
             chunk_size=500,  # Smaller chunks for faster processing

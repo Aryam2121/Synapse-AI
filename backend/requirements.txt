@@ -14,11 +14,13 @@ langchain-openai==0.1.25
 langchain-ollama==0.1.3
 langchain-groq==0.1.9
 langchain-text-splitters==0.2.4
-langchain-huggingface==0.0.3
+# langchain-huggingface removed - causes 1GB+ CUDA downloads
 openai==1.54.4
 
-# Embeddings (via langchain-huggingface)
-sentence-transformers>=2.7.0
+# Embeddings (lightweight - no CUDA/GPU packages)
+# NOTE: sentence-transformers pulls in 1GB+ of CUDA packages that cause Render deployment failures
+# Using OpenAI embeddings via langchain-openai instead (already installed above)
+# If you need local embeddings, install sentence-transformers manually with --no-deps
 
 # Vector databases
 pinecone>=6.0.0
