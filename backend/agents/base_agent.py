@@ -34,9 +34,9 @@ class BaseAgent:
                 api_key=groq_api_key,
                 streaming=True,
                 max_tokens=1024,  # Reduced for faster responses
-                timeout=45,  # Increased timeout for Groq API
-                max_retries=2,  # Allow retries for reliability
-                request_timeout=45  # Match timeout
+                timeout=60,  # 60s timeout for Groq API
+                max_retries=3,  # Allow 3 retries for reliability
+                request_timeout=60  # Match timeout
             )
             print(f"✓ Using FASTEST Groq model: {model}")
             print(f"✓ Groq API Key: {groq_api_key[:10]}...{groq_api_key[-4:]}")
@@ -136,9 +136,13 @@ class BaseAgent:
         
         # Get response
         print(f"[GROQ API CALL] Sending to Groq: {message[:50]}...")
-        response = await self.llm.agenerate([messages])
-        ai_message = response.generations[0][0].text
-        print(f"[GROQ RESPONSE] Received {len(ai_message)} chars from Groq API")
+        try:
+            response = await self.llm.agenerate([messages])
+            ai_message = response.generations[0][0].text
+            print(f"[GROQ RESPONSE] Received {len(ai_message)} chars from Groq API")
+        except Exception as groq_error:
+            print(f"[GROQ ERROR] {type(groq_error).__name__}: {str(groq_error)}")
+            raise
         
         # Cache disabled temporarily to verify Groq API calls
         # cache_key = self._get_cache_key(message, context)
