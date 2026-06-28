@@ -13,7 +13,42 @@ Render's free tier **doesn't have persistent file storage** for the app filesyst
 
 ---
 
-## Solution: Switch to PostgreSQL
+---
+
+## Recommended: Supabase PostgreSQL
+
+Use Supabase as the production database for the **FastAPI backend** (Render) and optional Supabase client features in the **Next.js frontend**.
+
+### Frontend (Vercel / `.env.local`)
+
+```env
+NEXT_PUBLIC_SUPABASE_URL=https://your-project-ref.supabase.co
+NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=your-publishable-key
+```
+
+From Supabase Dashboard → **Project Settings** → **API**.
+
+### Backend (Render `DATABASE_URL`)
+
+1. Supabase Dashboard → **Project Settings** → **Database** → **Connection string**
+2. Choose **Direct connection** → **URI**
+3. Copy and replace `[YOUR-PASSWORD]` with your database password:
+
+```env
+DATABASE_URL=postgresql://postgres:YOUR_DB_PASSWORD@db.vmnwupaexrzpnygksvtn.supabase.co:5432/postgres
+```
+
+4. Render → web service → **Environment** → set `DATABASE_URL` → Save → redeploy.
+
+If Render cannot connect (IPv6), switch to **Session pooler** URI in Supabase and use that instead.
+
+Logs should show `Database initialized successfully`.
+
+Supabase client helpers: `utils/supabase/client.ts`, `server.ts`, `middleware.ts`. Root `middleware.ts` refreshes sessions.
+
+---
+
+## Alternative: Render PostgreSQL
 
 ### Step 1: Create PostgreSQL Database on Render
 
