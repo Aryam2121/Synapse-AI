@@ -135,9 +135,8 @@ async def init_db():
 
 
 async def _migrate_users_schema():
-    """Add OAuth columns to existing SQLite databases."""
-    if "sqlite" not in DATABASE_URL:
-        return
+    """Add OAuth columns to existing SQLite and PostgreSQL databases."""
+    is_sqlite = "sqlite" in DATABASE_URL
 
     async with engine.begin() as conn:
         def sync_migrate(sync_conn):
@@ -148,11 +147,24 @@ async def _migrate_users_schema():
                 return
             cols = {c["name"] for c in insp.get_columns("users")}
             if "firebase_uid" not in cols:
-                sync_conn.execute(text("ALTER TABLE users ADD COLUMN firebase_uid VARCHAR"))
+                if is_sqlite:
+                    sync_conn.execute(text("ALTER TABLE users ADD COLUMN firebase_uid VARCHAR"))
+                else:
+                    sync_conn.execute(
+                        text("ALTER TABLE users ADD COLUMN IF NOT EXISTS firebase_uid VARCHAR")
+                    )
             if "auth_provider" not in cols:
-                sync_conn.execute(
-                    text("ALTER TABLE users ADD COLUMN auth_provider VARCHAR DEFAULT 'local'")
-                )
+                if is_sqlite:
+                    sync_conn.execute(
+                        text("ALTER TABLE users ADD COLUMN auth_provider VARCHAR DEFAULT 'local'")
+                    )
+                else:
+                    sync_conn.execute(
+                        text(
+                            "ALTER TABLE users ADD COLUMN IF NOT EXISTS "
+                            "auth_provider VARCHAR DEFAULT 'local'"
+                        )
+                    )
 
         await conn.run_sync(sync_migrate)
 
