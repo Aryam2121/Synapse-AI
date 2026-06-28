@@ -61,13 +61,28 @@ async def startup_event():
         logger.info("Backend is ready to accept requests")
     except Exception as e:
         logger.error("Startup error: %s", e)
+        err = str(e).lower()
         if "postgresql" in DATABASE_URL or "postgres" in DATABASE_URL:
-            logger.error(
-                "PostgreSQL connection failed. In Render → Environment, set DATABASE_URL "
-                "to the Internal Database URL from your Render Postgres service "
-                "(Dashboard → your database → Connect → Internal). "
-                "Or remove DATABASE_URL to use SQLite (data resets on redeploy)."
-            )
+            if "supabase.co" in DATABASE_URL and (
+                "network is unreachable" in err or "errno 101" in err
+            ):
+                logger.error(
+                    "Supabase Direct connection uses IPv6; Render cannot reach it. "
+                    "In Supabase → Database → Connection string, choose "
+                    "'Session pooler' (not Direct), copy the URI, and set DATABASE_URL on Render. "
+                    "User must be postgres.vmnwupaexrzpnygksvtn (with project ref), "
+                    "host must be aws-0-REGION.pooler.supabase.com:5432."
+                )
+            elif "db." in DATABASE_URL and ".supabase.co" in DATABASE_URL:
+                logger.error(
+                    "Do not use Supabase Direct (db.*.supabase.co) on Render. "
+                    "Use Session pooler URI from Supabase → Database → Connection string."
+                )
+            else:
+                logger.error(
+                    "PostgreSQL connection failed. Check DATABASE_URL on Render. "
+                    "For Supabase use Session pooler URI; for Render Postgres use Internal or External URL."
+                )
         logger.error("Backend will still run but auth and data features may not work")
         # Don't crash the app, let it start anyway
 

@@ -30,17 +30,22 @@ From Supabase Dashboard → **Project Settings** → **API**.
 
 ### Backend (Render `DATABASE_URL`)
 
+**Do not use Direct connection on Render** (`db.*.supabase.co`) — it uses IPv6 and fails with `Network is unreachable`.
+
 1. Supabase Dashboard → **Project Settings** → **Database** → **Connection string**
-2. Choose **Direct connection** → **URI**
-3. Copy and replace `[YOUR-PASSWORD]` with your database password:
+2. Set **Method** to **Session pooler** (IPv4-compatible)
+3. Copy the **URI** and replace `[YOUR-PASSWORD]`:
 
 ```env
-DATABASE_URL=postgresql://postgres:YOUR_DB_PASSWORD@db.vmnwupaexrzpnygksvtn.supabase.co:5432/postgres
+DATABASE_URL=postgresql://postgres.vmnwupaexrzpnygksvtn:YOUR_DB_PASSWORD@aws-0-REGION.pooler.supabase.com:5432/postgres
 ```
 
-4. Render → web service → **Environment** → set `DATABASE_URL` → Save → redeploy.
+Notes:
+- **User** must be `postgres.vmnwupaexrzpnygksvtn` (not just `postgres`)
+- **Host** must be `aws-0-REGION.pooler.supabase.com` (copy exact region from Supabase)
+- **Port** `5432` for Session pooler
 
-If Render cannot connect (IPv6), switch to **Session pooler** URI in Supabase and use that instead.
+4. Render → web service → **Environment** → set `DATABASE_URL` → Save → redeploy.
 
 Logs should show `Database initialized successfully`.
 
