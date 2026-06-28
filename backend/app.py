@@ -1,3 +1,7 @@
+from utils.env_loader import load_backend_env
+
+load_backend_env()
+
 from fastapi import FastAPI, HTTPException, UploadFile, File, WebSocket, WebSocketDisconnect, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
@@ -5,7 +9,6 @@ from fastapi.responses import StreamingResponse, Response, ORJSONResponse
 from pydantic import BaseModel
 from typing import List, Optional, Dict, Any
 import os
-from dotenv import load_dotenv
 import asyncio
 from datetime import datetime
 from functools import lru_cache
@@ -20,11 +23,8 @@ except ImportError:
 # Import our modules
 from agents.router import AgentRouter
 from agents.code_agent import CodeAgent
-from agents.document_agent import DocumentAgent
-from agents.task_agent import TaskAgent
-from agents.research_agent import ResearchAgent
-from rag.pipeline import RAGPipeline
 from db.database import get_db, init_db, User
+from sqlalchemy.ext.asyncio import AsyncSession
 from utils.logger import logger
 from auth.routes import router as auth_router
 from auth.dependencies import get_current_active_user
@@ -34,6 +34,7 @@ from api.settings import router as settings_router
 from api.notifications import router as notifications_router
 from api.insights import router as insights_router
 from api.collab import router as collab_router
+from api.collaboration import router as collaboration_router
 from api.exports import router as exports_router
 from api.voice import router as voice_router
 from api.search import router as search_router
@@ -44,8 +45,8 @@ from api.code_assistant import router as code_assistant_router
 from api.gamification import router as gamification_router
 from api.smart_scheduling import router as smart_scheduling_router
 from api.knowledge_base import router as knowledge_base_router
-
-load_dotenv()
+from api.ai_assistant import router as ai_assistant_router
+from api.conversations import router as conversations_router
 
 app = FastAPI(
     title="Synapse AI Workspace API",
@@ -58,13 +59,15 @@ app = FastAPI(
 @app.on_event("startup")
 async def startup_event():
     try:
+        from utils.env_loader import get_groq_api_key
         logger.info("Starting Synapse AI Backend...")
+        logger.info("Groq API key: %s", "configured" if get_groq_api_key() else "MISSING")
         logger.info("Initializing database...")
         await init_db()
-        logger.info("✓ Database initialized successfully")
-        logger.info("✓ Backend is ready to accept requests")
+        logger.info("Database initialized successfully")
+        logger.info("Backend is ready to accept requests")
     except Exception as e:
-        logger.error(f"❌ Startup error: {e}")
+        logger.error(f"Startup error: {e}")
         logger.error("Backend will still run but some features may not work")
         # Don't crash the app, let it start anyway
 
@@ -76,6 +79,7 @@ app.include_router(settings_router)
 app.include_router(notifications_router)
 app.include_router(insights_router)
 app.include_router(collab_router)
+app.include_router(collaboration_router)
 app.include_router(exports_router)
 app.include_router(voice_router)
 app.include_router(search_router)
@@ -86,6 +90,8 @@ app.include_router(code_assistant_router)
 app.include_router(gamification_router)
 app.include_router(smart_scheduling_router)
 app.include_router(knowledge_base_router)
+app.include_router(ai_assistant_router)
+app.include_router(conversations_router)
 
 # CORS Configuration
 # Allow localhost for development and production domains
@@ -93,7 +99,7 @@ allowed_origins = [
     "http://localhost:3000",
     "http://localhost:3001",
     "https://synapse-ai-theta.vercel.app",
-    "http://127.0.0.1:5500/",  # Production Vercel URL
+    "http://127.0.0.1:5500",
 ]
 
 # Add production frontend URL from environment variable
@@ -127,12 +133,21 @@ rag_pipeline = None
 agent_router = AgentRouter()
 
 def get_rag_pipeline():
-    """Lazy-load RAG pipeline to avoid startup timeout"""
+    """Lazy-load RAG pipeline to avoid startup timeout and heavy import at boot"""
     global rag_pipeline
     if rag_pipeline is None:
-        logger.info("Initializing RAG pipeline (this may take a moment on first use)...")
-        rag_pipeline = RAGPipeline()
-        logger.info("RAG pipeline initialized successfully")
+        try:
+            from rag.pipeline import RAGPipeline
+
+            logger.info("Initializing RAG pipeline (this may take a moment on first use)...")
+            rag_pipeline = RAGPipeline()
+            logger.info("RAG pipeline initialized successfully")
+        except ImportError as e:
+            logger.error(f"RAG dependencies missing: {e}")
+            raise HTTPException(
+                status_code=503,
+                detail="Document AI is unavailable. Install backend requirements: pip install -r requirements.txt",
+            )
     return rag_pipeline
 
 # Models
@@ -140,6 +155,8 @@ class ChatMessage(BaseModel):
     message: str
     conversation_id: Optional[str] = None
     agent_type: Optional[str] = None
+    document_ids: Optional[List[str]] = None
+    model: Optional[str] = None
 
 class ChatResponse(BaseModel):
     response: str
@@ -184,15 +201,6 @@ class ConnectionManager:
 
 manager = ConnectionManager()
 
-# Startup Event
-@app.on_event("startup")
-async def startup_event():
-    logger.info("Starting Universal AI Workspace API...")
-    await init_db()
-    logger.info("Database initialized")
-    logger.info("RAG Pipeline ready")
-    logger.info("Multi-Agent System ready")
-
 # Root endpoint
 @app.get("/")
 async def root():
@@ -223,14 +231,23 @@ async def health_check():
 @app.get("/api/config-check")
 async def config_check():
     """Check which AI provider is configured - useful for debugging"""
-    groq_key = os.getenv("GROQ_API_KEY")
+    from utils.env_loader import get_groq_api_key
+    groq_key = get_groq_api_key()
     openai_key = os.getenv("OPENAI_API_KEY")
     use_ollama_env = os.getenv("USE_OLLAMA", "false")
     use_ollama = use_ollama_env.lower() == "true"
     
+    try:
+        import pypdf  # noqa: F401
+
+        pdf_extraction_ready = True
+    except ImportError:
+        pdf_extraction_ready = False
+
     config = {
+        "pdf_extraction_ready": pdf_extraction_ready,
         "groq_configured": bool(groq_key),
-        "groq_key_preview": f"{groq_key[:10]}...{groq_key[-4:]}" if groq_key else "❌ NOT SET",
+        "groq_key_preview": f"{groq_key[:10]}...{groq_key[-4:]}" if groq_key else "NOT SET",
         "groq_key_length": len(groq_key) if groq_key else 0,
         "openai_configured": bool(openai_key),
         "use_ollama_env_var": use_ollama_env,
@@ -247,122 +264,296 @@ async def config_check():
     logger.info(f"Groq configured: {config['groq_configured']}, Key length: {config['groq_key_length']}")
     return config
 
-# Chat Endpoint
+@app.get("/api/chat/models")
+async def list_chat_models(current_user: User = Depends(get_current_active_user)):
+    """Available LLM models for the chat model picker."""
+    from utils.env_loader import get_groq_api_key
+    from utils.llm_factory import GROQ_MODELS, get_default_model
+
+    if get_groq_api_key():
+        return {
+            "provider": "groq",
+            "default": get_default_model(),
+            "models": GROQ_MODELS,
+        }
+    return {
+        "provider": "none",
+        "default": get_default_model(),
+        "models": [],
+    }
+
+
+async def _prepare_chat_turn(
+    request: ChatMessage,
+    current_user: User,
+    db: AsyncSession,
+) -> tuple[str, Any, str, list, str]:
+    """Returns agent_type, agent, chat_message, relevant_docs, conversation_id."""
+    from utils import conversation_memory
+    from utils.chat_service import (
+        build_document_context,
+        ensure_conversation,
+        load_messages_for_memory,
+        resolve_agent_and_context,
+    )
+
+    doc_context, extract_errors = (
+        build_document_context(request.document_ids or [], str(current_user.id))
+        if request.document_ids
+        else ([], [])
+    )
+
+    if request.document_ids and not doc_context:
+        detail = (
+            "; ".join(extract_errors)
+            if extract_errors
+            else "Could not read attached document(s). Try PDF, DOCX, TXT, or MD."
+        )
+        if "not installed" in detail.lower():
+            detail += " Run from project root: npm run install-backend"
+        raise HTTPException(status_code=400, detail=detail)
+
+    conv_id = await ensure_conversation(
+        db,
+        user_id=str(current_user.id),
+        conversation_id=request.conversation_id,
+        first_message=request.message,
+    )
+
+    if request.conversation_id and not conversation_memory.get_history(conv_id):
+        pairs = await load_messages_for_memory(db, conv_id)
+        if pairs:
+            conversation_memory.hydrate(conv_id, pairs)
+
+    agent_type, chat_message, relevant_docs = resolve_agent_and_context(
+        request.message, doc_context, agent_router, get_rag_pipeline
+    )
+
+    if not doc_context:
+        try:
+            pipeline = get_rag_pipeline()
+            rag_docs = await pipeline.search(request.message, k=2)
+            relevant_docs = list(relevant_docs) + list(rag_docs)
+        except Exception as rag_error:
+            logger.warning(f"RAG search failed: {str(rag_error)}")
+
+    agent = agent_router.get_agent(agent_type)
+    logger.info(f"Routed to {agent_type} for conversation {conv_id}")
+    return agent_type, agent, chat_message, relevant_docs, conv_id
+
+
+# Chat Endpoint (non-streaming fallback)
 @app.post("/api/chat", response_model=ChatResponse)
 async def chat(
     request: ChatMessage,
-    current_user: User = Depends(get_current_active_user)
+    current_user: User = Depends(get_current_active_user),
+    db: AsyncSession = Depends(get_db),
 ):
     import time
+    from utils.chat_service import save_message
+
     start_time = time.time()
-    
     try:
-        logger.info(f"User {current_user.email} - Received chat message: {request.message[:50]}...")
-        
-        # Route to appropriate agent
-        agent_type, confidence = agent_router.route(request.message)
-        logger.info(f"Routed to {agent_type} agent (confidence: {confidence})")
-        
-        # Get agent
-        agent = agent_router.get_agent(agent_type)
-        
-        # Process with RAG (handle empty results gracefully) - reduced for speed
-        relevant_docs = []
-        try:
-            pipeline = get_rag_pipeline()
-            relevant_docs = await pipeline.search(request.message, k=2)  # Only 2 docs for speed
-        except Exception as rag_error:
-            logger.warning(f"RAG search failed: {str(rag_error)}, continuing without context")
-        
-        # Generate response
-        response = await agent.process(
-            message=request.message,
-            context=relevant_docs if relevant_docs else [],
-            conversation_id=request.conversation_id
+        logger.info(f"User {current_user.email} - chat: {request.message[:50]}...")
+        agent_type, agent, chat_message, relevant_docs, conv_id = await _prepare_chat_turn(
+            request, current_user, db
         )
-        
-        # Log response time
+
+        await save_message(db, conversation_id=conv_id, role="user", content=request.message)
+
+        response = await agent.process(
+            message=chat_message,
+            context=relevant_docs if relevant_docs else [],
+            conversation_id=conv_id,
+            model=request.model,
+        )
+
+        await save_message(
+            db, conversation_id=conv_id, role="assistant", content=response["content"]
+        )
+
         elapsed_time = time.time() - start_time
-        cached = response.get("cached", False)
-        logger.info(f"Chat response generated in {elapsed_time:.2f}s (cached: {cached})")
-        
+        logger.info(f"Chat response in {elapsed_time:.2f}s")
+
         return ChatResponse(
             response=response["content"],
             agent_used=agent_type,
-            conversation_id=response["conversation_id"],
-            sources=response.get("sources", [])
+            conversation_id=conv_id,
+            sources=response.get("sources", []),
         )
-        
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Error in chat endpoint: {str(e)}")
         import traceback
+
         logger.error(traceback.format_exc())
         raise HTTPException(status_code=500, detail=str(e))
 
-# Stream Chat Endpoint (for real-time streaming)
+
+# Stream Chat Endpoint (ChatGPT-style token streaming)
 @app.post("/api/chat/stream")
-async def chat_stream(request: ChatMessage):
+async def chat_stream(
+    request: ChatMessage,
+    current_user: User = Depends(get_current_active_user),
+    db: AsyncSession = Depends(get_db),
+):
+    import json
+    from utils.chat_service import save_message
+
     async def generate():
         try:
-            agent_type, _ = agent_router.route(request.message)
-            agent = agent_router.get_agent(agent_type)
-            
-            async for chunk in agent.stream_process(request.message):
-                yield f"data: {chunk}\n\n"
-                
-        except Exception as e:
-            yield f"data: {{\"error\": \"{str(e)}\"}}\n\n"
-    
-    return StreamingResponse(generate(), media_type="text/event-stream")
+            agent_type, agent, chat_message, relevant_docs, conv_id = await _prepare_chat_turn(
+                request, current_user, db
+            )
+            yield f"data: {json.dumps({'conversation_id': conv_id, 'agent_used': agent_type})}\n\n"
 
-# Document Upload
+            await save_message(db, conversation_id=conv_id, role="user", content=request.message)
+
+            full_response = ""
+            async for chunk in agent.stream_process(
+                chat_message,
+                context=relevant_docs if relevant_docs else [],
+                conversation_id=conv_id,
+                model=request.model,
+            ):
+                full_response += chunk
+                yield f"data: {json.dumps({'content': chunk})}\n\n"
+
+            if full_response:
+                await save_message(
+                    db, conversation_id=conv_id, role="assistant", content=full_response
+                )
+            yield "data: [DONE]\n\n"
+        except HTTPException as e:
+            yield f"data: {json.dumps({'error': e.detail})}\n\n"
+        except Exception as e:
+            logger.error(f"Stream error: {e}")
+            yield f"data: {json.dumps({'error': str(e)})}\n\n"
+
+    return StreamingResponse(
+        generate(),
+        media_type="text/event-stream",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+    )
+
+# Document Upload (works without full RAG stack)
 @app.post("/api/documents/upload")
-async def upload_document(file: UploadFile = File(...)):
+async def upload_document(
+    file: UploadFile = File(...),
+    current_user: User = Depends(get_current_active_user),
+):
+    from utils.document_store import save_upload
+
     try:
-        logger.info(f"Uploading document: {file.filename}")
-        
-        # Save file
-        upload_dir = "uploads"
-        os.makedirs(upload_dir, exist_ok=True)
-        file_path = os.path.join(upload_dir, file.filename)
-        
-        with open(file_path, "wb") as f:
-            content = await file.read()
-            f.write(content)
-        
-        # Process with RAG
-        pipeline = get_rag_pipeline()
-        doc_id = await pipeline.add_document(file_path, file.filename)
-        
+        filename = file.filename or "upload.bin"
+        logger.info(f"Uploading document: {filename} for user {current_user.email}")
+        content = await file.read()
+        if not content:
+            raise HTTPException(status_code=400, detail="Empty file")
+
+        record = save_upload(
+            user_id=current_user.id,
+            filename=filename,
+            content=content,
+        )
+
+        rag_indexed = False
+        try:
+            pipeline = get_rag_pipeline()
+            await pipeline.add_document(record["file_path"], filename)
+            rag_indexed = True
+        except Exception as rag_error:
+            logger.warning(f"RAG indexing skipped: {rag_error}")
+
         return {
             "status": "success",
-            "document_id": doc_id,
-            "filename": file.filename,
-            "size": len(content)
+            "document_id": record["id"],
+            "filename": record["filename"],
+            "size": record["size"],
+            "rag_indexed": rag_indexed,
         }
-        
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Error uploading document: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
 
-# List Documents
+
 @app.get("/api/documents")
-async def list_documents():
+async def list_documents(current_user: User = Depends(get_current_active_user)):
+    from utils.document_store import list_documents as store_list
+
     try:
-        pipeline = get_rag_pipeline()
-        documents = await pipeline.list_documents()
+        documents = store_list(user_id=current_user.id)
         return {"documents": documents}
     except Exception as e:
         logger.error(f"Error listing documents: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
 
-# Delete Document
-@app.delete("/api/documents/{document_id}")
-async def delete_document(document_id: str):
+
+@app.post("/api/documents/{document_id}/analyze")
+async def analyze_document(
+    document_id: str,
+    current_user: User = Depends(get_current_active_user),
+):
+    """Summarize and extract insights from an uploaded document."""
+    from utils.document_store import get_document, extract_text
+    from agents.document_agent import DocumentAgent
+
+    record = get_document(document_id, user_id=current_user.id)
+    if not record:
+        raise HTTPException(status_code=404, detail="Document not found")
+
     try:
-        pipeline = get_rag_pipeline()
-        await pipeline.delete_document(document_id)
+        text = extract_text(record["file_path"], record["filename"])
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+    if len(text.strip()) < 20:
+        raise HTTPException(
+            status_code=400,
+            detail="Could not extract enough text from this file. Try a text-based PDF or DOCX.",
+        )
+
+    agent = DocumentAgent()
+    summary = await agent.summarize(text, max_length=400)
+    response = await agent.process(
+        message=(
+            "List 5 key takeaways and 3 suggested follow-up questions the user should ask "
+            "to learn more from this document."
+        ),
+        context=[{"content": text[:12000], "metadata": {"source": record["filename"]}}],
+    )
+
+    return {
+        "document_id": document_id,
+        "filename": record["filename"],
+        "summary": summary,
+        "insights": response["content"],
+        "word_count": len(text.split()),
+    }
+
+
+@app.delete("/api/documents/{document_id}")
+async def delete_document(
+    document_id: str,
+    current_user: User = Depends(get_current_active_user),
+):
+    from utils.document_store import delete_document as store_delete
+
+    try:
+        deleted = store_delete(document_id, user_id=current_user.id)
+        if not deleted:
+            raise HTTPException(status_code=404, detail="Document not found")
+        try:
+            pipeline = get_rag_pipeline()
+            await pipeline.delete_document(document_id)
+        except Exception:
+            pass
         return {"status": "success", "message": "Document deleted"}
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Error deleting document: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
@@ -427,14 +618,37 @@ async def get_analytics():
         raise HTTPException(status_code=500, detail=str(e))
 
 if __name__ == "__main__":
+    import sys
     import uvicorn
-    # Use PORT from environment (for Render/cloud) or default to 8000
+
     port = int(os.getenv("PORT", 8000))
-    uvicorn.run(
-        "app:app",
-        host="0.0.0.0",
-        port=port,
-        reload=True,
-        reload_excludes=["*.db", "*.db-*"],
-        log_level="info"
+    use_reload = os.getenv("UVICORN_RELOAD", "").lower() == "true"
+    if sys.platform == "win32" and os.getenv("UVICORN_RELOAD") is None:
+        use_reload = False
+
+    from utils.env_loader import get_groq_api_key
+    logger.info(
+        "Starting server on port %s (reload=%s, groq=%s)",
+        port,
+        use_reload,
+        "configured" if get_groq_api_key() else "MISSING",
     )
+
+    try:
+        uvicorn.run(
+            "app:app",
+            host="0.0.0.0",
+            port=port,
+            reload=use_reload,
+            reload_excludes=["*.db", "*.db-*"],
+            log_level="info",
+        )
+    except OSError as e:
+        if getattr(e, "winerror", None) == 10048 or e.errno in (98, 10048):
+            logger.error(
+                "Port %s is already in use. Another backend is still running. "
+                "Use it at http://localhost:%s/health or run: npm run backend:stop",
+                port,
+                port,
+            )
+        raise

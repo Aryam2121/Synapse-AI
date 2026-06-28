@@ -11,7 +11,9 @@ import { ScrollArea } from '@/components/ui/scroll-area'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Zap, Play, Clock, Settings, PlayCircle, Plus, Edit, Trash2 } from 'lucide-react'
 import { motion } from 'framer-motion'
-import { toast } from '@/components/ui/use-toast'
+import { toast } from 'sonner'
+import { apiFetch, parseApiError, getAuthToken } from '@/lib/panel-auth'
+import { PanelLoadError } from './PanelLoadError'
 
 interface AutomationRule {
   id: string
@@ -50,43 +52,47 @@ export function AutomationPanel() {
   const [workflows, setWorkflows] = useState<Workflow[]>([])
   const [templates, setTemplates] = useState<Template[]>([])
   const [isLoading, setIsLoading] = useState(true)
+  const [loadError, setLoadError] = useState<string | null>(null)
 
   useEffect(() => {
     fetchAutomations()
   }, [])
 
   const fetchAutomations = async () => {
+    if (!getAuthToken()) {
+      setLoadError('Please log in to use Automation.')
+      setIsLoading(false)
+      return
+    }
     setIsLoading(true)
+    setLoadError(null)
     try {
-      const token = localStorage.getItem('token')
-      
       const [rulesRes, workflowsRes, templatesRes] = await Promise.all([
-        fetch(`${API_URL}/api/automation/rules`, {
-          headers: { Authorization: `Bearer ${token}` },
-        }),
-        fetch(`${API_URL}/api/automation/workflows`, {
-          headers: { Authorization: `Bearer ${token}` },
-        }),
-        fetch(`${API_URL}/api/automation/templates`, {
-          headers: { Authorization: `Bearer ${token}` },
-        }),
+        apiFetch('/api/automation/rules'),
+        apiFetch('/api/automation/workflows'),
+        apiFetch('/api/automation/templates'),
       ])
 
-      const [rulesData, workflowsData, templatesData] = await Promise.all([
-        rulesRes.json(),
-        workflowsRes.json(),
-        templatesRes.json()
-      ])
-
-      setRules(rulesData.rules || [])
-      setWorkflows(workflowsData.workflows || [])
-      setTemplates(templatesData.templates || [])
-    } catch (error) {
-      toast({
-        title: 'Error',
-        description: 'Failed to load automations',
-        variant: 'destructive'
-      })
+      let ok = 0
+      if (rulesRes.ok) {
+        const rulesData = await rulesRes.json()
+        setRules(rulesData.rules || [])
+        ok++
+      }
+      if (workflowsRes.ok) {
+        const workflowsData = await workflowsRes.json()
+        setWorkflows(workflowsData.workflows || [])
+        ok++
+      }
+      if (templatesRes.ok) {
+        const templatesData = await templatesRes.json()
+        setTemplates(templatesData.templates || [])
+        ok++
+      }
+      if (ok === 0) setLoadError(await parseApiError(rulesRes))
+    } catch {
+      setLoadError('Failed to connect to the server. Restart the backend (npm run backend).')
+      toast.error('Failed to load automations')
     } finally {
       setIsLoading(false)
     }
@@ -94,30 +100,24 @@ export function AutomationPanel() {
 
   const testRule = async (ruleId: string) => {
     try {
-      const token = localStorage.getItem('token')
+      const token = localStorage.getItem('auth_token')
       const response = await fetch(`${API_URL}/api/automation/test-rule/${ruleId}`, {
         method: 'POST',
         headers: { 'Authorization': `Bearer ${token}` }
       })
-      
+
+      if (!response.ok) throw new Error(await parseApiError(response))
       const data = await response.json()
-      
-      toast({
-        title: 'Test Complete',
-        description: `Would execute ${data.actions_to_execute} actions`
-      })
-    } catch (error) {
-      toast({
-        title: 'Test Failed',
-        description: 'Failed to test rule',
-        variant: 'destructive'
-      })
+
+      toast.success(`Would execute ${data.actions_to_execute} actions`)
+    } catch {
+      toast.error('Failed to test rule')
     }
   }
 
   const executeWorkflow = async (workflowId: string) => {
     try {
-      const token = localStorage.getItem('token')
+      const token = localStorage.getItem('auth_token')
       const response = await fetch(`${API_URL}/api/automation/workflows/${workflowId}/execute`, {
         method: 'POST',
         headers: {
@@ -126,19 +126,13 @@ export function AutomationPanel() {
         },
         body: JSON.stringify({ input_data: {} })
       })
-      
+
+      if (!response.ok) throw new Error(await parseApiError(response))
       const data = await response.json()
-      
-      toast({
-        title: 'Workflow Started',
-        description: `Execution ID: ${data.execution_id}`
-      })
-    } catch (error) {
-      toast({
-        title: 'Execution Failed',
-        description: 'Failed to start workflow',
-        variant: 'destructive'
-      })
+
+      toast.success(`Workflow started: ${data.execution_id}`)
+    } catch {
+      toast.error('Failed to start workflow')
     }
   }
 
@@ -160,7 +154,8 @@ export function AutomationPanel() {
   }
 
   return (
-    <div className="h-full p-6 space-y-6">
+    <div className="h-full p-6 space-y-6 overflow-auto">
+      {loadError && <PanelLoadError message={loadError} onRetry={fetchAutomations} />}
       <div className="flex items-center justify-between">
         <h2 className="text-3xl font-bold bg-gradient-to-r from-primary to-purple-600 bg-clip-text text-transparent">
           Automation & Workflows

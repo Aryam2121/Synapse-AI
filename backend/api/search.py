@@ -1,25 +1,32 @@
-from fastapi import APIRouter, HTTPException, Depends, Query
+from fastapi import APIRouter, Depends, Query
 from pydantic import BaseModel
 from typing import List, Optional, Dict, Any
-from datetime import datetime
-from .auth import get_current_active_user
+import time
+
+from auth.dependencies import get_current_active_user
+from db.database import User, get_db
+from sqlalchemy.ext.asyncio import AsyncSession
+from utils.workspace_search import search_workspace
 
 router = APIRouter(prefix="/api/search", tags=["search"])
+
 
 class SearchQuery(BaseModel):
     query: str
     filters: Optional[Dict[str, Any]] = None
     limit: int = 20
 
+
 class SearchResult(BaseModel):
     id: str
-    type: str  # task, document, chat, code
+    type: str
     title: str
     content: str
     relevance_score: float
     highlights: List[str]
     metadata: Dict[str, Any]
     timestamp: str
+
 
 class SearchResponse(BaseModel):
     results: List[SearchResult]
@@ -28,179 +35,112 @@ class SearchResponse(BaseModel):
     processing_time: float
     suggestions: List[str]
 
+
 @router.post("/semantic", response_model=SearchResponse)
 async def semantic_search(
     search: SearchQuery,
-    current_user: dict = Depends(get_current_active_user)
+    current_user: User = Depends(get_current_active_user),
+    db: AsyncSession = Depends(get_db),
 ):
-    """
-    AI-powered semantic search across all workspace content.
-    Uses embeddings to find contextually similar results, not just keyword matches.
-    """
-    # In production, use vector embeddings with FAISS or similar
-    query_lower = search.query.lower()
-    
-    results = []
-    
-    # Mock semantic search results
-    if "deadline" in query_lower or "due" in query_lower:
-        results.append(SearchResult(
-            id="task_123",
-            type="task",
-            title="Project Deadline Approaching",
-            content="Complete the Q4 report by December 15th. High priority.",
-            relevance_score=0.94,
-            highlights=["deadline", "December 15th", "high priority"],
-            metadata={"priority": "high", "status": "in_progress", "due_date": "2025-12-15"},
-            timestamp="2025-12-01T10:00:00Z"
-        ))
-    
-    if "document" in query_lower or "report" in query_lower:
-        results.append(SearchResult(
-            id="doc_456",
-            type="document",
-            title="Q3 Performance Report",
-            content="Comprehensive analysis of third quarter performance metrics and KPIs.",
-            relevance_score=0.89,
-            highlights=["performance", "report", "analysis"],
-            metadata={"category": "reports", "size": "2.4MB", "pages": 24},
-            timestamp="2025-11-20T14:30:00Z"
-        ))
-    
-    if "meeting" in query_lower or "discussion" in query_lower:
-        results.append(SearchResult(
-            id="chat_789",
-            type="chat",
-            title="Team Meeting Discussion",
-            content="Discussed project timeline, resource allocation, and next steps.",
-            relevance_score=0.86,
-            highlights=["meeting", "timeline", "discussed"],
-            metadata={"participants": 5, "duration": "45min"},
-            timestamp="2025-12-03T15:00:00Z"
-        ))
-    
-    # Add general results
-    results.extend([
-        SearchResult(
-            id="code_101",
-            type="code",
-            title="Authentication Module",
-            content="User authentication and JWT token management implementation.",
-            relevance_score=0.75,
-            highlights=["authentication", "JWT"],
-            metadata={"language": "python", "lines": 247},
-            timestamp="2025-11-15T09:00:00Z"
-        )
-    ])
-    
+    """Search your real chats, documents, and tasks (keyword match)."""
+    start = time.time()
+    type_filter = None
+    if search.filters and search.filters.get("types"):
+        type_filter = search.filters["types"]
+
+    raw = await search_workspace(
+        db,
+        str(current_user.id),
+        search.query,
+        type_filter=type_filter,
+        limit=search.limit,
+    )
+
+    results = [SearchResult(**r) for r in raw]
+    elapsed = time.time() - start
+
+    suggestions = []
+    if not results and len(search.query) >= 2:
+        suggestions = ["resume", "tasks", "documents", "meeting"]
+    elif results:
+        suggestions = list({r.type + "s" for r in results})[:4]
+
     return SearchResponse(
-        results=results[:search.limit],
+        results=results,
         total=len(results),
         query=search.query,
-        processing_time=0.12,
-        suggestions=[
-            "upcoming deadlines",
-            "high priority tasks",
-            "recent documents",
-            "team discussions"
-        ]
+        processing_time=round(elapsed, 3),
+        suggestions=suggestions,
     )
+
 
 @router.get("/suggestions")
 async def get_search_suggestions(
-    prefix: str = Query(..., min_length=2),
-    current_user: dict = Depends(get_current_active_user)
+    prefix: str = Query(..., min_length=1),
+    current_user: User = Depends(get_current_active_user),
+    db: AsyncSession = Depends(get_db),
 ):
-    """
-    Get autocomplete suggestions as user types.
-    AI-powered smart suggestions based on workspace content and history.
-    """
-    suggestions = []
+    """Autocomplete from your real workspace content."""
+    from sqlalchemy import select
+    from db.database import Conversation
+
+    uid = str(current_user.id)
     prefix_lower = prefix.lower()
-    
-    common_queries = [
-        "deadlines this week",
-        "documents from last month",
-        "tasks assigned to me",
-        "recent conversations",
-        "code reviews pending",
-        "analytics dashboard",
-        "team collaboration",
-        "project timeline"
-    ]
-    
-    # Filter suggestions that match prefix
-    suggestions = [q for q in common_queries if prefix_lower in q.lower()]
-    
-    return {
-        "suggestions": suggestions[:5],
-        "prefix": prefix
-    }
+    suggestions: list[str] = []
+
+    result = await db.execute(
+        select(Conversation.title)
+        .where(Conversation.user_id == uid)
+        .order_by(Conversation.updated_at.desc())
+        .limit(20)
+    )
+    for (title,) in result.all():
+        if title and prefix_lower in title.lower():
+            suggestions.append(title)
+
+    from utils.document_store import list_documents
+
+    for doc in list_documents(user_id=uid)[:15]:
+        name = doc.get("filename") or ""
+        if prefix_lower in name.lower():
+            suggestions.append(name)
+
+    defaults = ["my resume", "tasks due", "recent chats", "uploaded documents"]
+    for d in defaults:
+        if prefix_lower in d and d not in suggestions:
+            suggestions.append(d)
+
+    return {"suggestions": suggestions[:8], "prefix": prefix}
+
 
 @router.get("/filters")
-async def get_available_filters(current_user: dict = Depends(get_current_active_user)):
-    """
-    Get available search filters and facets.
-    """
+async def get_available_filters(current_user: User = Depends(get_current_active_user)):
+    from utils.document_store import list_documents
+    from sqlalchemy import select, func
+    from db.database import Conversation, Task
+
+    doc_count = len(list_documents(user_id=str(current_user.id)))
+
     return {
         "filters": {
             "type": {
                 "label": "Content Type",
                 "options": [
-                    {"value": "task", "label": "Tasks", "count": 45},
-                    {"value": "document", "label": "Documents", "count": 128},
-                    {"value": "chat", "label": "Conversations", "count": 234},
-                    {"value": "code", "label": "Code", "count": 67}
-                ]
+                    {"value": "task", "label": "Tasks"},
+                    {"value": "document", "label": "Documents"},
+                    {"value": "chat", "label": "Conversations"},
+                ],
             },
-            "date": {
-                "label": "Date Range",
-                "options": [
-                    {"value": "today", "label": "Today"},
-                    {"value": "week", "label": "This Week"},
-                    {"value": "month", "label": "This Month"},
-                    {"value": "custom", "label": "Custom Range"}
-                ]
-            },
-            "priority": {
-                "label": "Priority",
-                "options": [
-                    {"value": "high", "label": "High", "count": 12},
-                    {"value": "medium", "label": "Medium", "count": 23},
-                    {"value": "low", "label": "Low", "count": 10}
-                ]
-            }
-        }
+        },
+        "counts": {"documents": doc_count},
     }
 
-@router.post("/index")
-async def index_content(
-    content_type: str,
-    content_id: str,
-    current_user: dict = Depends(get_current_active_user)
-):
-    """
-    Index new content for semantic search.
-    Automatically called when new content is created.
-    """
-    return {
-        "indexed": True,
-        "content_type": content_type,
-        "content_id": content_id,
-        "embedding_dimensions": 1536,
-        "processing_time": 0.08
-    }
 
 @router.get("/trending")
-async def get_trending_searches(current_user: dict = Depends(get_current_active_user)):
-    """
-    Get trending search queries in the workspace.
-    """
+async def get_trending_searches(current_user: User = Depends(get_current_active_user)):
     return {
         "trending": [
-            {"query": "project deadlines", "count": 23, "trend": "up"},
-            {"query": "team meetings", "count": 18, "trend": "up"},
-            {"query": "code reviews", "count": 15, "trend": "stable"},
-            {"query": "analytics reports", "count": 12, "trend": "down"}
+            {"query": "resume", "count": 0, "trend": "stable"},
+            {"query": "tasks", "count": 0, "trend": "stable"},
         ]
     }

@@ -1,8 +1,9 @@
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect, Depends, HTTPException
-from typing import List, Dict, Set
+from typing import List, Dict, Set, Optional
 from datetime import datetime
-from .auth import get_current_active_user
-from pydantic import BaseModel
+from auth.dependencies import get_current_active_user
+from db.database import User
+from pydantic import BaseModel, Field
 import json
 import asyncio
 
@@ -70,6 +71,12 @@ class CollaborationSession(BaseModel):
     document_id: str
     participants: List[str]
     created_at: str
+
+
+class SessionCreateRequest(BaseModel):
+    session_name: Optional[str] = "Collaboration Session"
+    session_type: Optional[str] = "document"
+    document_id: Optional[str] = None
 
 @router.websocket("/ws/{session_id}")
 async def websocket_endpoint(websocket: WebSocket, session_id: str):
@@ -139,25 +146,28 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str):
 
 @router.post("/sessions/create")
 async def create_session(
-    document_id: str,
-    current_user: dict = Depends(get_current_active_user)
+    request: SessionCreateRequest,
+    current_user: User = Depends(get_current_active_user),
 ):
     """Create a new real-time collaboration session"""
     import uuid
     session_id = str(uuid.uuid4())
-    
+    doc_id = request.document_id or f"doc-{session_id[:8]}"
+
     return {
         "session_id": session_id,
-        "document_id": document_id,
-        "host": current_user["sub"],
+        "document_id": doc_id,
+        "session_name": request.session_name,
+        "session_type": request.session_type,
+        "host": current_user.id,
         "created_at": datetime.now().isoformat(),
-        "ws_url": f"ws://localhost:8000/api/realtime/ws/{session_id}"
+        "ws_url": f"/api/realtime/ws/{session_id}",
     }
 
 @router.get("/sessions/{session_id}/participants")
 async def get_session_participants(
     session_id: str,
-    current_user: dict = Depends(get_current_active_user)
+    current_user: User = Depends(get_current_active_user),
 ):
     """Get active participants in a session"""
     participants = []
@@ -166,14 +176,17 @@ async def get_session_participants(
         if presence.get("session_id") == session_id and presence.get("status") == "online":
             participants.append({
                 "user_id": user_id,
+                "username": f"User {user_id[-6:]}",
+                "avatar": "👤",
                 "status": "online",
-                "joined_at": presence.get("last_seen")
+                "joined_at": presence.get("last_seen"),
+                "last_activity": presence.get("last_seen"),
             })
     
     return {"participants": participants, "count": len(participants)}
 
 @router.get("/presence")
-async def get_user_presence(current_user: dict = Depends(get_current_active_user)):
+async def get_user_presence(current_user: User = Depends(get_current_active_user)):
     """Get presence status of all users"""
     return {
         "users": [
@@ -190,12 +203,12 @@ async def get_user_presence(current_user: dict = Depends(get_current_active_user
 async def broadcast_message(
     session_id: str,
     message: dict,
-    current_user: dict = Depends(get_current_active_user)
+    current_user: User = Depends(get_current_active_user),
 ):
     """Broadcast a message to all participants in a session"""
     await manager.broadcast_to_session(session_id, {
         **message,
-        "sender": current_user["sub"],
+        "sender": current_user.id,
         "timestamp": datetime.now().isoformat()
     })
     return {"status": "broadcasted"}

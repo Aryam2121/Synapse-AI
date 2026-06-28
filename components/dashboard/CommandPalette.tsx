@@ -18,9 +18,10 @@ interface SearchResult {
 
 interface CommandPaletteProps {
   onNavigate: (view: string) => void
+  onNewChat?: () => void
 }
 
-export function CommandPalette({ onNavigate }: CommandPaletteProps) {
+export function CommandPalette({ onNavigate, onNewChat }: CommandPaletteProps) {
   const [isOpen, setIsOpen] = useState(false)
   const [query, setQuery] = useState('')
   const [results, setResults] = useState<SearchResult[]>([])
@@ -105,7 +106,9 @@ export function CommandPalette({ onNavigate }: CommandPaletteProps) {
   }
 
   const handleSelect = (result: SearchResult) => {
-    if (result.id.startsWith('nav-')) {
+    if (result.id === 'new-chat') {
+      onNewChat?.()
+    } else if (result.id.startsWith('nav-')) {
       const view = result.id.replace('nav-', '')
       onNavigate(view === 'docs' ? 'documents' : view)
     }

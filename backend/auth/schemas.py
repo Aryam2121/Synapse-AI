@@ -38,6 +38,14 @@ class TokenData(BaseModel):
     user_id: Optional[str] = None
 
 
+class ForgotPasswordRequest(BaseModel):
+    email: EmailStr
+
+
+class FirebaseAuthRequest(BaseModel):
+    id_token: str = Field(..., min_length=10)
+
+
 class AuthResponse(BaseModel):
     user: UserResponse
     token: Token

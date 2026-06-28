@@ -2,7 +2,7 @@ from fastapi import APIRouter, HTTPException, Depends, Query
 from pydantic import BaseModel
 from typing import List, Optional, Dict, Any
 from datetime import datetime, timedelta
-from .auth import get_current_active_user
+from auth.dependencies import get_current_active_user
 import random
 
 router = APIRouter(prefix="/api/visualization", tags=["visualization"])

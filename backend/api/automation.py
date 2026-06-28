@@ -2,7 +2,7 @@ from fastapi import APIRouter, HTTPException, Depends
 from pydantic import BaseModel
 from typing import List, Optional, Dict, Any
 from datetime import datetime
-from .auth import get_current_active_user
+from auth.dependencies import get_current_active_user
 
 router = APIRouter(prefix="/api/automation", tags=["automation"])
 

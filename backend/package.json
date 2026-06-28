@@ -1,0 +1,9 @@
+{
+  "name": "synapse-ai-backend",
+  "private": true,
+  "description": "Synapse AI FastAPI backend (port 8000)",
+  "scripts": {
+    "dev": "python app.py",
+    "start": "python app.py"
+  }
+}

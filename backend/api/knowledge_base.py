@@ -2,7 +2,9 @@ from fastapi import APIRouter, HTTPException, Depends, UploadFile, File
 from pydantic import BaseModel
 from typing import List, Optional, Dict, Any
 from datetime import datetime
-from .auth import get_current_active_user
+from auth.dependencies import get_current_active_user
+from auth.user_helpers import user_id
+from db.database import User
 
 router = APIRouter(prefix="/api/knowledge", tags=["knowledge-base"])
 
@@ -19,7 +21,7 @@ class KnowledgeSearch(BaseModel):
 @router.post("/articles")
 async def create_article(
     article: Article,
-    current_user: dict = Depends(get_current_active_user)
+    current_user: User = Depends(get_current_active_user),
 ):
     """
     Create a new knowledge base article with automatic tagging and categorization.
@@ -39,7 +41,7 @@ async def create_article(
         "tags": all_tags,
         "category": article.category,
         "metadata": {
-            "author": current_user["sub"],
+            "author": user_id(current_user),
             "created_at": datetime.now().isoformat(),
             "word_count": word_count,
             "reading_time_minutes": reading_time,
@@ -55,7 +57,7 @@ async def list_articles(
     category: Optional[str] = None,
     tag: Optional[str] = None,
     limit: int = 20,
-    current_user: dict = Depends(get_current_active_user)
+    current_user: User = Depends(get_current_active_user)
 ):
     """
     List knowledge base articles with filtering and sorting.
@@ -125,7 +127,7 @@ async def list_articles(
 @router.get("/articles/{article_id}")
 async def get_article(
     article_id: str,
-    current_user: dict = Depends(get_current_active_user)
+    current_user: User = Depends(get_current_active_user)
 ):
     """
     Get detailed article with related content and AI insights.
@@ -218,7 +220,7 @@ actions:
 @router.post("/search")
 async def search_knowledge_base(
     search: KnowledgeSearch,
-    current_user: dict = Depends(get_current_active_user)
+    current_user: User = Depends(get_current_active_user)
 ):
     """
     AI-powered semantic search across knowledge base.
@@ -255,7 +257,7 @@ async def search_knowledge_base(
     }
 
 @router.get("/categories")
-async def get_categories(current_user: dict = Depends(get_current_active_user)):
+async def get_categories(current_user: User = Depends(get_current_active_user)):
     """
     Get all knowledge base categories with article counts.
     """
@@ -309,7 +311,7 @@ async def submit_feedback(
     article_id: str,
     helpful: bool,
     comment: Optional[str] = None,
-    current_user: dict = Depends(get_current_active_user)
+    current_user: User = Depends(get_current_active_user)
 ):
     """
     Submit feedback on article helpfulness.
@@ -324,7 +326,7 @@ async def submit_feedback(
 @router.get("/trending")
 async def get_trending_articles(
     period: str = "week",
-    current_user: dict = Depends(get_current_active_user)
+    current_user: User = Depends(get_current_active_user)
 ):
     """
     Get trending articles based on views and engagement.

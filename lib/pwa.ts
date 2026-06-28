@@ -72,7 +72,7 @@ export const subscribeToPushNotifications = async () => {
     })
 
     // Send subscription to backend
-    const token = localStorage.getItem('token')
+    const token = localStorage.getItem('auth_token')
     await fetch(`${API_URL}/api/notifications/subscribe`, {
       method: 'POST',
       headers: {
@@ -98,7 +98,7 @@ export const unsubscribeFromPushNotifications = async () => {
       await subscription.unsubscribe()
       
       // Notify backend
-      const token = localStorage.getItem('token')
+      const token = localStorage.getItem('auth_token')
       await fetch(`${API_URL}/api/notifications/unsubscribe`, {
         method: 'POST',
         headers: {

@@ -10,7 +10,9 @@ import { ScrollArea } from '@/components/ui/scroll-area'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Book, Search, TrendingUp, Star, Clock, Tag, ThumbsUp, Eye } from 'lucide-react'
 import { motion } from 'framer-motion'
-import { toast } from '@/components/ui/use-toast'
+import { toast } from 'sonner'
+import { apiFetch, parseApiError, getAuthToken } from '@/lib/panel-auth'
+import { PanelLoadError } from './PanelLoadError'
 
 interface Article {
   id: string
@@ -42,6 +44,26 @@ interface SearchResult extends Article {
   excerpt: string
 }
 
+/** API list items use `summary`; detail uses `content` — normalize for UI */
+function normalizeArticle(raw: Record<string, unknown>): Article {
+  const meta = (raw.metadata as Article['metadata']) || {}
+  return {
+    id: String(raw.id ?? ''),
+    title: String(raw.title ?? 'Untitled'),
+    content: String(raw.content ?? raw.summary ?? ''),
+    tags: Array.isArray(raw.tags) ? (raw.tags as string[]) : [],
+    category: String(raw.category ?? 'general'),
+    metadata: {
+      author: String(meta.author ?? raw.author ?? 'Unknown'),
+      created_at: String(meta.created_at ?? raw.created_at ?? ''),
+      word_count: Number(meta.word_count ?? 0),
+      reading_time_minutes: Number(meta.reading_time_minutes ?? raw.reading_time ?? 5),
+      views: Number(meta.views ?? raw.views ?? 0),
+      likes: Number(meta.likes ?? raw.likes ?? 0),
+    },
+  }
+}
+
 export function KnowledgeBasePanel() {
   const [articles, setArticles] = useState<Article[]>([])
   const [categories, setCategories] = useState<Category[]>([])
@@ -50,52 +72,36 @@ export function KnowledgeBasePanel() {
   const [searchResults, setSearchResults] = useState<SearchResult[]>([])
   const [selectedArticle, setSelectedArticle] = useState<Article | null>(null)
   const [isSearching, setIsSearching] = useState(false)
+  const [loadError, setLoadError] = useState<string | null>(null)
 
-  const fetchArticles = async () => {
-    try {
-      const token = localStorage.getItem('token')
-      const response = await fetch(`${API_URL}/api/knowledge/articles`, {
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
-      })
-
-      const data = await response.json()
-      setArticles(data.articles || [])
-    } catch (error) {
-      console.error('Failed to fetch articles:', error)
+  const loadKnowledge = async () => {
+    if (!getAuthToken()) {
+      setLoadError('Please log in to use Knowledge Base.')
+      return
     }
-  }
-
-  const fetchCategories = async () => {
+    setLoadError(null)
     try {
-      const token = localStorage.getItem('token')
-      const response = await fetch(`${API_URL}/api/knowledge/categories`, {
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
-      })
-
-      const data = await response.json()
-      setCategories(data.categories || [])
-    } catch (error) {
-      console.error('Failed to fetch categories:', error)
-    }
-  }
-
-  const fetchTrending = async () => {
-    try {
-      const token = localStorage.getItem('token')
-      const response = await fetch(`${API_URL}/api/knowledge/trending?period=week`, {
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
-      })
-
-      const data = await response.json()
-      setTrendingArticles(data.trending || [])
-    } catch (error) {
-      console.error('Failed to fetch trending:', error)
+      const [articlesRes, categoriesRes, trendingRes] = await Promise.all([
+        apiFetch('/api/knowledge/articles'),
+        apiFetch('/api/knowledge/categories'),
+        apiFetch('/api/knowledge/trending?period=week'),
+      ])
+      if (articlesRes.ok) {
+        const data = await articlesRes.json()
+        setArticles((data.articles || []).map((a: Record<string, unknown>) => normalizeArticle(a)))
+      } else {
+        setLoadError(await parseApiError(articlesRes))
+      }
+      if (categoriesRes.ok) {
+        const data = await categoriesRes.json()
+        setCategories(data.categories || [])
+      }
+      if (trendingRes.ok) {
+        const data = await trendingRes.json()
+        setTrendingArticles(data.trending || data.articles || [])
+      }
+    } catch {
+      setLoadError('Failed to connect to the server.')
     }
   }
 
@@ -104,41 +110,32 @@ export function KnowledgeBasePanel() {
 
     setIsSearching(true)
     try {
-      const token = localStorage.getItem('token')
-      const response = await fetch(`${API_URL}/api/knowledge/search`, {
+      const response = await apiFetch('/api/knowledge/search', {
         method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          query: searchQuery,
-          filters: {}
-        })
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ query: searchQuery, filters: {} }),
       })
 
+      if (!response.ok) throw new Error(await parseApiError(response))
+
       const data = await response.json()
-      setSearchResults(data.results || [])
-      
-      toast({
-        title: 'Search Complete',
-        description: `Found ${data.results.length} articles`
-      })
+      setSearchResults(
+        (data.results || []).map((r: Record<string, unknown>) => ({
+          ...normalizeArticle(r),
+          relevance_score: Number(r.relevance_score ?? 0),
+          excerpt: String(r.excerpt ?? r.summary ?? r.content ?? '').slice(0, 200),
+        }))
+      )
+      toast.success(`Found ${data.results?.length || 0} articles`)
     } catch (error) {
-      toast({
-        title: 'Error',
-        description: 'Failed to search articles',
-        variant: 'destructive'
-      })
+      toast.error(error instanceof Error ? error.message : 'Search failed')
     } finally {
       setIsSearching(false)
     }
   }
 
   useEffect(() => {
-    fetchArticles()
-    fetchCategories()
-    fetchTrending()
+    loadKnowledge()
   }, [])
 
   const handleKeyPress = (e: React.KeyboardEvent) => {
@@ -148,7 +145,8 @@ export function KnowledgeBasePanel() {
   }
 
   return (
-    <div className="h-full p-6 space-y-6">
+    <div className="h-full p-6 space-y-6 overflow-auto">
+      {loadError && <PanelLoadError message={loadError} onRetry={loadKnowledge} />}
       <div className="flex items-center justify-between">
         <h2 className="text-3xl font-bold bg-gradient-to-r from-primary to-indigo-600 bg-clip-text text-transparent">
           Knowledge Base
@@ -207,24 +205,25 @@ export function KnowledgeBasePanel() {
                           <Badge variant="outline">{article.category}</Badge>
                         </div>
                         <p className="text-sm text-muted-foreground mb-3 line-clamp-2">
-                          {article.content.substring(0, 200)}...
+                          {(article.content || '').slice(0, 200)}
+                          {(article.content || '').length > 200 ? '...' : ''}
                         </p>
                         <div className="flex items-center gap-4 text-sm text-muted-foreground">
                           <span className="flex items-center gap-1">
                             <Clock className="h-3 w-3" />
-                            {article.metadata.reading_time_minutes} min read
+                            {article.metadata?.reading_time_minutes ?? 5} min read
                           </span>
                           <span className="flex items-center gap-1">
                             <Eye className="h-3 w-3" />
-                            {article.metadata.views.toLocaleString()} views
+                            {(article.metadata?.views ?? 0).toLocaleString()} views
                           </span>
                           <span className="flex items-center gap-1">
                             <ThumbsUp className="h-3 w-3" />
-                            {article.metadata.likes}
+                            {article.metadata?.likes ?? 0}
                           </span>
                         </div>
                         <div className="flex items-center gap-2 mt-3">
-                          {article.tags.slice(0, 3).map((tag) => (
+                          {(article.tags || []).slice(0, 3).map((tag) => (
                             <Badge key={tag} variant="secondary" className="text-xs">
                               <Tag className="h-2 w-2 mr-1" />
                               {tag}

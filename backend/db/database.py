@@ -1,7 +1,7 @@
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
-from sqlalchemy import Column, String, DateTime, Integer, Text, Boolean
+from sqlalchemy import Column, String, DateTime, Integer, Text, Boolean, text
 import os
 from datetime import datetime
 
@@ -42,6 +42,8 @@ class User(Base):
     email = Column(String, unique=True, nullable=False)
     password_hash = Column(String, nullable=False)
     name = Column(String)
+    firebase_uid = Column(String, unique=True, nullable=True)
+    auth_provider = Column(String, default="local")
     is_active = Column(Boolean, default=True)
     is_verified = Column(Boolean, default=False)
     created_at = Column(DateTime, default=datetime.utcnow)
@@ -95,6 +97,30 @@ class Task(Base):
 async def init_db():
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
+    await _migrate_users_schema()
+
+
+async def _migrate_users_schema():
+    """Add OAuth columns to existing SQLite databases."""
+    if "sqlite" not in DATABASE_URL:
+        return
+
+    async with engine.begin() as conn:
+        def sync_migrate(sync_conn):
+            from sqlalchemy import inspect
+
+            insp = inspect(sync_conn)
+            if "users" not in insp.get_table_names():
+                return
+            cols = {c["name"] for c in insp.get_columns("users")}
+            if "firebase_uid" not in cols:
+                sync_conn.execute(text("ALTER TABLE users ADD COLUMN firebase_uid VARCHAR"))
+            if "auth_provider" not in cols:
+                sync_conn.execute(
+                    text("ALTER TABLE users ADD COLUMN auth_provider VARCHAR DEFAULT 'local'")
+                )
+
+        await conn.run_sync(sync_migrate)
 
 # Get database session
 async def get_db():

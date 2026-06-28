@@ -6,9 +6,9 @@ from typing import Optional
 from jose import JWTError, jwt
 from passlib.context import CryptContext
 import os
-from dotenv import load_dotenv
+from utils.env_loader import load_backend_env
 
-load_dotenv()
+load_backend_env()
 
 # Configuration
 SECRET_KEY = os.getenv("SECRET_KEY", "your-secret-key-change-this-in-production")
@@ -41,31 +41,13 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
 
 def get_password_hash(password: str) -> str:
     """Hash a password"""
-    # Bcrypt has a 72-byte limit, so truncate at byte level
     password_bytes = password.encode('utf-8')
-    
-    # Debug logging
-    print(f"Password length in chars: {len(password)}")
-    print(f"Password length in bytes: {len(password_bytes)}")
-    
     if len(password_bytes) > 72:
         password_bytes = password_bytes[:72]
-        # Decode back, handling potential decoding errors
         try:
             password = password_bytes.decode('utf-8')
         except UnicodeDecodeError:
-            # If we cut in the middle of a character, trim one more byte
             password = password_bytes[:71].decode('utf-8', errors='ignore')
-    
-    # Final check
-    final_bytes = password.encode('utf-8')
-    print(f"Final password length in bytes: {len(final_bytes)}")
-    
-    if len(final_bytes) > 72:
-        # Force truncate to exactly 72 bytes
-        password = final_bytes[:72].decode('utf-8', errors='ignore')
-        print(f"Force truncated to: {len(password.encode('utf-8'))} bytes")
-    
     return pwd_context.hash(password)
 
 

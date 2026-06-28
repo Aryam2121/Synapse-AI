@@ -1,8 +1,8 @@
 from fastapi import APIRouter, HTTPException, Depends, Query
-from pydantic import BaseModel
+from pydantic import BaseModel, Field, AliasChoices
 from typing import List, Optional, Dict, Any
 from datetime import datetime, timedelta
-from .auth import get_current_active_user
+from auth.dependencies import get_current_active_user
 
 router = APIRouter(prefix="/api/scheduling", tags=["smart-scheduling"])
 
@@ -14,8 +14,12 @@ class TimeSlot(BaseModel):
 
 class MeetingRequest(BaseModel):
     title: str
-    duration: int  # minutes
-    participants: List[str]
+    duration: int = Field(
+        ...,
+        validation_alias=AliasChoices("duration", "duration_minutes"),
+        description="Meeting duration in minutes",
+    )
+    participants: List[str] = []
     preferred_time: Optional[str] = None
     deadline: Optional[str] = None
 
@@ -178,8 +182,10 @@ async def get_focus_time_suggestions(current_user: dict = Depends(get_current_ac
             "recommended_tasks": ["review", "planning", "creative work"]
         })
     
+    blocks = suggestions[:5]
     return {
-        "focus_blocks": suggestions[:5],  # Show next 5 blocks
+        "focus_blocks": blocks,
+        "upcoming_focus_blocks": blocks,
         "total_focus_hours_week": 28,
         "utilization_rate": 0.75,
         "tips": [

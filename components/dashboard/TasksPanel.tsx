@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { API_URL } from '@/lib/api-config'
 import { Plus, Check, Trash2, Calendar, Flag } from 'lucide-react'
 import { Button } from '@/components/ui/button'
@@ -16,6 +16,8 @@ import { ScrollArea } from '@/components/ui/scroll-area'
 import { motion } from 'framer-motion'
 import { toast } from 'sonner'
 import { formatRelativeTime } from '@/lib/utils'
+import { PanelLoadError } from './PanelLoadError'
+import { DashboardPanelShell } from './DashboardPanelShell'
 
 interface Task {
   id: string
@@ -28,33 +30,9 @@ interface Task {
 }
 
 export function TasksPanel() {
-  const [tasks, setTasks] = useState<Task[]>([
-    {
-      id: '1',
-      title: 'Review code documentation',
-      description: 'Update API documentation for the new features',
-      completed: false,
-      priority: 'high',
-      dueDate: new Date(Date.now() + 86400000),
-      createdAt: new Date(),
-    },
-    {
-      id: '2',
-      title: 'Prepare presentation',
-      description: 'Create slides for the team meeting',
-      completed: false,
-      priority: 'medium',
-      createdAt: new Date(),
-    },
-    {
-      id: '3',
-      title: 'Complete research paper',
-      description: 'Finalize the introduction section',
-      completed: true,
-      priority: 'low',
-      createdAt: new Date(Date.now() - 86400000),
-    },
-  ])
+  const [tasks, setTasks] = useState<Task[]>([])
+  const [loadError, setLoadError] = useState<string | null>(null)
+  const [isLoading, setIsLoading] = useState(true)
 
   const [newTask, setNewTask] = useState({
     title: '',
@@ -64,6 +42,45 @@ export function TasksPanel() {
   })
 
   const [dialogOpen, setDialogOpen] = useState(false)
+
+  const loadTasks = async () => {
+    setIsLoading(true)
+    setLoadError(null)
+    try {
+      const token = localStorage.getItem('auth_token')
+      if (!token) {
+        setLoadError('Please log in to manage tasks.')
+        return
+      }
+      const response = await fetch(`${API_URL}/api/tasks`, {
+        headers: { Authorization: `Bearer ${token}` },
+      })
+      if (!response.ok) {
+        const err = await response.json().catch(() => ({}))
+        throw new Error(typeof err.detail === 'string' ? err.detail : 'Failed to load tasks')
+      }
+      const data = await response.json()
+      setTasks(
+        data.map((t: { id: string; title: string; description: string; completed: boolean; priority: string; due_date?: string; created_at: string }) => ({
+          id: t.id,
+          title: t.title,
+          description: t.description || '',
+          completed: t.completed,
+          priority: t.priority as Task['priority'],
+          dueDate: t.due_date ? new Date(t.due_date) : undefined,
+          createdAt: new Date(t.created_at),
+        }))
+      )
+    } catch (error) {
+      setLoadError(error instanceof Error ? error.message : 'Failed to load tasks')
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    loadTasks()
+  }, [])
 
   const handleAddTask = async () => {
     if (!newTask.title.trim()) {
@@ -116,7 +133,7 @@ export function TasksPanel() {
     try {
       const token = localStorage.getItem('auth_token')
       const response = await fetch(`${API_URL}/api/tasks/${id}`, {
-        method: 'PUT',
+        method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${token}`,
@@ -237,80 +254,76 @@ export function TasksPanel() {
   )
 
   return (
-    <div className="h-full p-6 overflow-auto">
-      <div className="max-w-4xl mx-auto space-y-6">
-        {/* Header */}
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-3xl font-bold mb-2">Tasks</h1>
-            <p className="text-muted-foreground">
-              Manage your tasks and boost productivity with AI assistance
-            </p>
-          </div>
-          <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-            <DialogTrigger asChild>
-              <Button size="lg">
-                <Plus className="h-4 w-4 mr-2" />
-                New Task
-              </Button>
-            </DialogTrigger>
-            <DialogContent>
-              <DialogHeader>
-                <DialogTitle>Create New Task</DialogTitle>
-              </DialogHeader>
-              <div className="space-y-4 pt-4">
-                <div>
-                  <Label htmlFor="title">Title *</Label>
-                  <Input
-                    id="title"
-                    placeholder="Task title"
-                    value={newTask.title}
-                    onChange={(e) => setNewTask({ ...newTask, title: e.target.value })}
-                  />
-                </div>
-                <div>
-                  <Label htmlFor="description">Description</Label>
-                  <Textarea
-                    id="description"
-                    placeholder="Task description"
-                    value={newTask.description}
-                    onChange={(e) => setNewTask({ ...newTask, description: e.target.value })}
-                  />
-                </div>
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <Label htmlFor="priority">Priority</Label>
-                    <select
-                      id="priority"
-                      className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-                      value={newTask.priority}
-                      onChange={(e) => setNewTask({ ...newTask, priority: e.target.value as Task['priority'] })}
-                    >
-                      <option value="low">Low</option>
-                      <option value="medium">Medium</option>
-                      <option value="high">High</option>
-                    </select>
-                  </div>
-                  <div>
-                    <Label htmlFor="dueDate">Due Date</Label>
-                    <Input
-                      id="dueDate"
-                      type="date"
-                      value={newTask.dueDate}
-                      onChange={(e) => setNewTask({ ...newTask, dueDate: e.target.value })}
-                    />
-                  </div>
-                </div>
-                <Button onClick={handleAddTask} className="w-full">
-                  Create Task
-                </Button>
+    <DashboardPanelShell
+      title="Tasks"
+      description="Manage your tasks and boost productivity with AI assistance"
+      actions={
+        <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+          <DialogTrigger asChild>
+            <Button size="lg" className="bg-gradient-to-r from-violet-600 to-purple-600 hover:from-violet-500 hover:to-purple-500">
+              <Plus className="h-4 w-4 mr-2" />
+              New Task
+            </Button>
+          </DialogTrigger>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Create New Task</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4 pt-4">
+              <div>
+                <Label htmlFor="title">Title *</Label>
+                <Input
+                  id="title"
+                  placeholder="Task title"
+                  value={newTask.title}
+                  onChange={(e) => setNewTask({ ...newTask, title: e.target.value })}
+                />
               </div>
-            </DialogContent>
-          </Dialog>
-        </div>
+              <div>
+                <Label htmlFor="description">Description</Label>
+                <Textarea
+                  id="description"
+                  placeholder="Task description"
+                  value={newTask.description}
+                  onChange={(e) => setNewTask({ ...newTask, description: e.target.value })}
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label htmlFor="priority">Priority</Label>
+                  <select
+                    id="priority"
+                    className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                    value={newTask.priority}
+                    onChange={(e) => setNewTask({ ...newTask, priority: e.target.value as Task['priority'] })}
+                  >
+                    <option value="low">Low</option>
+                    <option value="medium">Medium</option>
+                    <option value="high">High</option>
+                  </select>
+                </div>
+                <div>
+                  <Label htmlFor="dueDate">Due Date</Label>
+                  <Input
+                    id="dueDate"
+                    type="date"
+                    value={newTask.dueDate}
+                    onChange={(e) => setNewTask({ ...newTask, dueDate: e.target.value })}
+                  />
+                </div>
+              </div>
+              <Button onClick={handleAddTask} className="w-full">
+                Create Task
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
+      }
+    >
+      {loadError && <PanelLoadError message={loadError} onRetry={loadTasks} />}
 
-        {/* Stats */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+      {/* Stats */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <Card>
             <CardContent className="p-6">
               <div className="text-2xl font-bold">{tasks.length}</div>
@@ -349,7 +362,11 @@ export function TasksPanel() {
               <TabsContent value="active">
                 <ScrollArea className="h-[400px]">
                   <div className="space-y-2">
-                    {activeTasks.length === 0 ? (
+                    {isLoading ? (
+                      <div className="text-center py-12 text-muted-foreground">
+                        <p>Loading tasks...</p>
+                      </div>
+                    ) : activeTasks.length === 0 ? (
                       <div className="text-center py-12 text-muted-foreground">
                         <Check className="h-12 w-12 mx-auto mb-4 opacity-50" />
                         <p>No active tasks. Great job!</p>
@@ -377,7 +394,6 @@ export function TasksPanel() {
             </Tabs>
           </CardContent>
         </Card>
-      </div>
-    </div>
+    </DashboardPanelShell>
   )
 }

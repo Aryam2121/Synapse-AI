@@ -1,12 +1,17 @@
 from typing import Dict, Any, List, Optional, AsyncIterator
-from langchain_ollama import ChatOllama
-from langchain_groq import ChatGroq
 from langchain_core.messages import HumanMessage, SystemMessage, AIMessage
+from utils.env_loader import load_backend_env, get_groq_api_key
 import os
 import uuid
 import hashlib
 from datetime import datetime, timedelta
 from functools import lru_cache
+
+import sys
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from utils.logger import logger
+
+load_backend_env()
 
 class BaseAgent:
     """Base class for all specialized agents"""
@@ -17,15 +22,20 @@ class BaseAgent:
         self.system_prompt = system_prompt
         
         # Initialize LLM - Priority: Groq (free) > OpenAI > Ollama (local dev)
-        groq_api_key = os.getenv("GROQ_API_KEY")
-        openai_api_key = os.getenv("OPENAI_API_KEY")
-        use_ollama = os.getenv("USE_OLLAMA", "false").lower() == "true"  # Default to false for production
-        
-        print(f"[AI CONFIG] Groq Key: {'SET' if groq_api_key else 'NOT SET'}")
-        print(f"[AI CONFIG] OpenAI Key: {'SET' if openai_api_key else 'NOT SET'}")
-        print(f"[AI CONFIG] Use Ollama: {use_ollama}")
+        groq_api_key = get_groq_api_key()
+        openai_api_key = (os.getenv("OPENAI_API_KEY") or "").strip() or None
+        use_ollama = os.getenv("USE_OLLAMA", "false").lower() == "true"
+
+        logger.info(
+            "AI config: groq=%s openai=%s ollama=%s",
+            "SET" if groq_api_key else "NOT SET",
+            "SET" if openai_api_key else "NOT SET",
+            use_ollama,
+        )
         
         if groq_api_key:
+            from langchain_groq import ChatGroq
+
             # FREE Cloud: Use Groq (recommended for production)
             model = os.getenv("GROQ_MODEL", "llama-3.1-8b-instant")  # Fastest model
             self.llm = ChatGroq(
@@ -38,8 +48,7 @@ class BaseAgent:
                 max_retries=3,  # Allow 3 retries for reliability
                 request_timeout=60  # Match timeout
             )
-            print(f"✓ Using FASTEST Groq model: {model}")
-            print(f"✓ Groq API Key: {groq_api_key[:10]}...{groq_api_key[-4:]}")
+            logger.info("Using Groq model: %s", model)
         elif openai_api_key:
             # Paid: Use OpenAI if key provided
             from langchain_openai import ChatOpenAI
@@ -48,8 +57,10 @@ class BaseAgent:
                 temperature=0.7,
                 api_key=openai_api_key
             )
-            print("✓ Using OpenAI")
+            logger.info("Using OpenAI")
         elif use_ollama:
+            from langchain_ollama import ChatOllama
+
             # Local Dev: Use Ollama (local, no API key needed)
             model = os.getenv("OLLAMA_MODEL", "llama3.1")
             self.llm = ChatOllama(
@@ -57,7 +68,7 @@ class BaseAgent:
                 temperature=0.7,
                 base_url=os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
             )
-            print(f"✓ Using LOCAL Ollama model: {model}")
+            logger.info("Using Ollama model: %s", model)
         else:
             # Fallback error
             raise ValueError(
@@ -83,11 +94,19 @@ class BaseAgent:
                 return response
         return None
     
+    def _resolve_llm(self, model: Optional[str] = None):
+        if model:
+            from utils.llm_factory import create_llm
+
+            return create_llm(model)
+        return self.llm
+
     async def process(
         self,
         message: str,
         context: List[Dict[str, Any]] = None,
-        conversation_id: Optional[str] = None
+        conversation_id: Optional[str] = None,
+        model: Optional[str] = None,
     ) -> Dict[str, Any]:
         """Process a message and return a response"""
         
@@ -111,13 +130,11 @@ class BaseAgent:
         #         "cached": True
         #     }
         
-        print(f"[GROQ API] Calling Groq for: {message[:50]}...")
+        logger.info("Calling LLM for: %s...", message[:50])
         
-        # Get conversation history
-        if conversation_id not in self.conversation_history:
-            self.conversation_history[conversation_id] = []
-        
-        history = self.conversation_history[conversation_id]
+        from utils.conversation_memory import append_exchange, get_history
+
+        history = get_history(conversation_id)
         
         # Build messages
         messages = [SystemMessage(content=self.system_prompt)]
@@ -134,14 +151,13 @@ class BaseAgent:
         # Add current message
         messages.append(HumanMessage(content=message))
         
-        # Get response
-        print(f"[GROQ API CALL] Sending to Groq: {message[:50]}...")
+        llm = self._resolve_llm(model)
         try:
-            response = await self.llm.agenerate([messages])
+            response = await llm.agenerate([messages])
             ai_message = response.generations[0][0].text
-            print(f"[GROQ RESPONSE] Received {len(ai_message)} chars from Groq API")
+            logger.info("LLM response received (%s chars)", len(ai_message))
         except Exception as groq_error:
-            print(f"[GROQ ERROR] {type(groq_error).__name__}: {str(groq_error)}")
+            logger.error("LLM error: %s: %s", type(groq_error).__name__, groq_error)
             raise
         
         # Cache disabled temporarily to verify Groq API calls
@@ -155,10 +171,8 @@ class BaseAgent:
             for old_key in oldest_keys:
                 del self.response_cache[old_key]
         
-        # Update history
-        history.append(HumanMessage(content=message))
-        history.append(AIMessage(content=ai_message))
-        
+        append_exchange(conversation_id, message, ai_message)
+
         return {
             "content": ai_message,
             "conversation_id": conversation_id,
@@ -170,24 +184,41 @@ class BaseAgent:
     async def stream_process(
         self,
         message: str,
-        context: List[Dict[str, Any]] = None
+        context: List[Dict[str, Any]] = None,
+        conversation_id: Optional[str] = None,
+        model: Optional[str] = None,
     ) -> AsyncIterator[str]:
-        """Stream the response token by token"""
-        
-        callback = AsyncIteratorCallbackHandler()
-        
-        messages = [
-            SystemMessage(content=self.system_prompt),
-            HumanMessage(content=message)
-        ]
-        
+        """Stream the response token by token."""
+        from utils.conversation_memory import append_exchange, get_history
+
+        if conversation_id is None:
+            conversation_id = str(uuid.uuid4())
+
+        messages = [SystemMessage(content=self.system_prompt)]
         if context:
             context_text = self._format_context(context)
-            messages.insert(1, SystemMessage(content=f"Context:\n{context_text}"))
-        
-        # Stream response
-        async for token in self.llm.astream(messages, callbacks=[callback]):
-            yield token.content
+            messages.append(SystemMessage(content=f"Relevant context:\n{context_text}"))
+
+        history = get_history(conversation_id)
+        for msg in history[-10:]:
+            messages.append(msg)
+        messages.append(HumanMessage(content=message))
+
+        llm = self._resolve_llm(model)
+        full_response = ""
+        async for chunk in llm.astream(messages):
+            part = chunk.content if hasattr(chunk, "content") and chunk.content else ""
+            if isinstance(part, list):
+                part = "".join(
+                    block.get("text", "") if isinstance(block, dict) else str(block)
+                    for block in part
+                )
+            if part:
+                full_response += part
+                yield part
+
+        if full_response:
+            append_exchange(conversation_id, message, full_response)
     
     def _format_context(self, context: List[Dict[str, Any]]) -> str:
         """Format context documents for inclusion in prompt"""
@@ -200,5 +231,8 @@ class BaseAgent:
     
     def clear_history(self, conversation_id: str):
         """Clear conversation history for a given ID"""
+        from utils.conversation_memory import clear
+
+        clear(conversation_id)
         if conversation_id in self.conversation_history:
             del self.conversation_history[conversation_id]

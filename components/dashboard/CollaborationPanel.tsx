@@ -73,13 +73,20 @@ export function CollaborationPanel() {
 
       if (workspacesRes.ok) {
         const data = await workspacesRes.json()
-        setWorkspaces(data.workspaces)
-        if (data.workspaces.length > 0) {
-          setSelectedWorkspace(data.workspaces[0].id)
+        const list = data.workspaces || []
+        setWorkspaces(list)
+        if (list.length > 0) {
+          setSelectedWorkspace(list[0].id)
         }
       }
-      if (membersRes.ok) setTeamMembers((await membersRes.json()).members)
-      if (mentionsRes.ok) setMentions((await mentionsRes.json()).mentions)
+      if (membersRes.ok) {
+        const membersData = await membersRes.json()
+        setTeamMembers(membersData.members || membersData.team_members || [])
+      }
+      if (mentionsRes.ok) {
+        const mentionsData = await mentionsRes.json()
+        setMentions(mentionsData.mentions || [])
+      }
     } catch (error) {
       console.error('Failed to fetch collaboration data:', error)
     }

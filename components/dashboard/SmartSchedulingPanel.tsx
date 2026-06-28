@@ -10,7 +10,9 @@ import { ScrollArea } from '@/components/ui/scroll-area'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Calendar, Clock, Zap, TrendingUp, Users, Brain, Target, CheckCircle } from 'lucide-react'
 import { motion } from 'framer-motion'
-import { toast } from '@/components/ui/use-toast'
+import { toast } from 'sonner'
+import { apiFetch, parseApiError, getAuthToken } from '@/lib/panel-auth'
+import { PanelLoadError } from './PanelLoadError'
 
 interface TimeSlot {
   start_time: string
@@ -57,80 +59,93 @@ export function SmartSchedulingPanel() {
   const [focusBlocks, setFocusBlocks] = useState<FocusBlock[]>([])
   const [analytics, setAnalytics] = useState<TimeAnalytics | null>(null)
   const [isLoading, setIsLoading] = useState(false)
+  const [loadError, setLoadError] = useState<string | null>(null)
+
+  const reloadAll = () => {
+    fetchFocusBlocks()
+    fetchAnalytics()
+    if (meetingTitle.trim()) suggestMeetingTimes()
+  }
 
   const fetchFocusBlocks = async () => {
+    if (!getAuthToken()) return
     try {
-      const token = localStorage.getItem('token')
-      const response = await fetch(`${API_URL}/api/scheduling/focus-time-suggestions`, {
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
-      })
-
-      const data = await response.json()
-      setFocusBlocks(data.upcoming_focus_blocks || [])
-    } catch (error) {
-      console.error('Failed to fetch focus blocks:', error)
+      const response = await apiFetch('/api/scheduling/focus-time-suggestions')
+      if (response.ok) {
+        const data = await response.json()
+        setFocusBlocks(data.upcoming_focus_blocks || data.focus_blocks || [])
+      }
+    } catch {
+      /* optional tab data */
     }
   }
 
   const fetchAnalytics = async () => {
+    if (!getAuthToken()) return
     try {
-      const token = localStorage.getItem('token')
-      const response = await fetch(`${API_URL}/api/scheduling/time-analytics`, {
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
-      })
-
+      const response = await apiFetch('/api/scheduling/time-analytics')
+      if (!response.ok) return
       const data = await response.json()
-      setAnalytics(data)
-    } catch (error) {
-      console.error('Failed to fetch analytics:', error)
+      const metrics = data.metrics ?? data.productivity_metrics ?? {}
+      const breakdown =
+        data.breakdown ??
+        (data.time_breakdown
+          ? Object.entries(data.time_breakdown).map(([category, val]) => {
+              const v = val as { hours?: number; percentage?: number; trend?: string }
+              return {
+                category: category.replace(/_/g, ' '),
+                hours: v.hours ?? 0,
+                percentage: Math.round((v.percentage ?? 0) * 100),
+                trend: v.trend ?? 'stable',
+              }
+            })
+          : [])
+      setAnalytics({
+        ...data,
+        metrics,
+        breakdown,
+        recommendations: data.recommendations ?? [],
+      })
+    } catch {
+      /* optional tab data */
     }
   }
 
   const suggestMeetingTimes = async () => {
     if (!meetingTitle.trim()) {
-      toast({
-        title: 'Error',
-        description: 'Please enter a meeting title',
-        variant: 'destructive'
-      })
+      toast.error('Please enter a meeting title')
       return
     }
 
+    if (!getAuthToken()) {
+      setLoadError('Please log in to use Smart Scheduling.')
+      return
+    }
     setIsLoading(true)
+    setLoadError(null)
     try {
-      const token = localStorage.getItem('token')
-      const response = await fetch(`${API_URL}/api/scheduling/suggest-meeting-times`, {
+      const response = await apiFetch('/api/scheduling/suggest-meeting-times', {
         method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           title: meetingTitle,
+          duration,
           duration_minutes: duration,
           participants: ['user1', 'user2'],
           preferred_time: 'morning',
-          deadline: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString()
-        })
+          deadline: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
+        }),
       })
+
+      if (!response.ok) throw new Error(await parseApiError(response))
 
       const data = await response.json()
       setSuggestions(data.suggestions || [])
-      
-      toast({
-        title: 'Suggestions Ready!',
-        description: `Found ${data.suggestions.length} optimal time slots`
-      })
+      toast.success(`Found ${data.suggestions?.length || 0} time slots`)
     } catch (error) {
-      toast({
-        title: 'Error',
-        description: 'Failed to get suggestions',
-        variant: 'destructive'
-      })
+      const msg = error instanceof Error ? error.message : 'Failed to get suggestions'
+      setLoadError(msg)
+      toast.error(msg)
     } finally {
       setIsLoading(false)
     }
@@ -156,7 +171,8 @@ export function SmartSchedulingPanel() {
   }
 
   return (
-    <div className="h-full p-6 space-y-6">
+    <div className="h-full p-6 space-y-6 overflow-auto">
+      {loadError && <PanelLoadError message={loadError} onRetry={reloadAll} />}
       <div className="flex items-center justify-between">
         <h2 className="text-3xl font-bold bg-gradient-to-r from-primary to-purple-600 bg-clip-text text-transparent">
           Smart Scheduling
@@ -302,7 +318,7 @@ export function SmartSchedulingPanel() {
                               </div>
                               <div className="space-y-1">
                                 <p className="text-sm font-medium">Recommended for:</p>
-                                {block.recommended_tasks.map((task, i) => (
+                                {(block.recommended_tasks || []).map((task, i) => (
                                   <p key={i} className="text-sm text-muted-foreground pl-4">
                                     • {task}
                                   </p>
@@ -326,38 +342,38 @@ export function SmartSchedulingPanel() {
 
         {/* Time Analytics */}
         <TabsContent value="analytics" className="space-y-4 mt-4">
-          {analytics && (
+          {analytics?.metrics && (
             <>
               {/* Metrics Cards */}
               <div className="grid grid-cols-4 gap-4">
                 <Card>
                   <CardContent className="pt-6 text-center">
-                    <p className={`text-3xl font-bold ${getMetricColor(analytics.metrics.focus_score)}`}>
-                      {(analytics.metrics.focus_score * 100).toFixed(0)}%
+                    <p className={`text-3xl font-bold ${getMetricColor(analytics.metrics.focus_score ?? 0)}`}>
+                      {((analytics.metrics.focus_score ?? 0) * 100).toFixed(0)}%
                     </p>
                     <p className="text-sm text-muted-foreground">Focus Score</p>
                   </CardContent>
                 </Card>
                 <Card>
                   <CardContent className="pt-6 text-center">
-                    <p className={`text-3xl font-bold ${getMetricColor(1 - analytics.metrics.fragmentation_index)}`}>
-                      {(analytics.metrics.fragmentation_index * 100).toFixed(0)}%
+                    <p className={`text-3xl font-bold ${getMetricColor(1 - (analytics.metrics.fragmentation_index ?? 0))}`}>
+                      {((analytics.metrics.fragmentation_index ?? 0) * 100).toFixed(0)}%
                     </p>
                     <p className="text-sm text-muted-foreground">Fragmentation</p>
                   </CardContent>
                 </Card>
                 <Card>
                   <CardContent className="pt-6 text-center">
-                    <p className={`text-3xl font-bold ${getMetricColor(analytics.metrics.meeting_efficiency)}`}>
-                      {(analytics.metrics.meeting_efficiency * 100).toFixed(0)}%
+                    <p className={`text-3xl font-bold ${getMetricColor(analytics.metrics.meeting_efficiency ?? 0)}`}>
+                      {((analytics.metrics.meeting_efficiency ?? 0) * 100).toFixed(0)}%
                     </p>
                     <p className="text-sm text-muted-foreground">Meeting Efficiency</p>
                   </CardContent>
                 </Card>
                 <Card>
                   <CardContent className="pt-6 text-center">
-                    <p className={`text-3xl font-bold ${getMetricColor(analytics.metrics.work_life_balance)}`}>
-                      {(analytics.metrics.work_life_balance * 100).toFixed(0)}%
+                    <p className={`text-3xl font-bold ${getMetricColor(analytics.metrics.work_life_balance ?? 0)}`}>
+                      {((analytics.metrics.work_life_balance ?? 0) * 100).toFixed(0)}%
                     </p>
                     <p className="text-sm text-muted-foreground">Work-Life Balance</p>
                   </CardContent>
@@ -371,12 +387,12 @@ export function SmartSchedulingPanel() {
                 </CardHeader>
                 <CardContent>
                   <div className="space-y-4">
-                    {analytics.breakdown.map((item, idx) => (
+                    {(analytics.breakdown || []).map((item, idx) => (
                       <div key={idx} className="space-y-2">
                         <div className="flex items-center justify-between">
                           <div className="flex items-center gap-2">
                             <span className="font-medium">{item.category}</span>
-                            <Badge variant={item.trend.startsWith('+') ? 'default' : 'secondary'}>
+                            <Badge variant={(item.trend || '').startsWith('+') ? 'default' : 'secondary'}>
                               <TrendingUp className="h-3 w-3 mr-1" />
                               {item.trend}
                             </Badge>
@@ -409,7 +425,7 @@ export function SmartSchedulingPanel() {
                 </CardHeader>
                 <CardContent>
                   <div className="space-y-2">
-                    {analytics.recommendations.map((rec, idx) => (
+                    {(analytics.recommendations || []).map((rec, idx) => (
                       <motion.div
                         key={idx}
                         initial={{ opacity: 0, x: -20 }}

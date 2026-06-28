@@ -8,7 +8,7 @@ import { Badge } from '@/components/ui/badge'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Mic, MicOff, Volume2, PlayCircle, History, Settings } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { toast } from '@/components/ui/use-toast'
+import { toast } from 'sonner'
 
 interface VoiceCommand {
   id: string
@@ -32,10 +32,12 @@ export function VoiceAssistantPanel() {
 
   const fetchHistory = async () => {
     try {
-      const token = localStorage.getItem('token')
+      const token = localStorage.getItem('auth_token')
+      if (!token) return
       const response = await fetch(`${API_URL}/api/voice/history`, {
-        headers: { 'Authorization': `Bearer ${token}` }
+        headers: { Authorization: `Bearer ${token}` },
       })
+      if (!response.ok) return
       const data = await response.json()
       setHistory(data.history || [])
     } catch (error) {
@@ -45,11 +47,7 @@ export function VoiceAssistantPanel() {
 
   const startListening = () => {
     if (!('webkitSpeechRecognition' in window)) {
-      toast({
-        title: 'Not Supported',
-        description: 'Speech recognition is not supported in your browser.',
-        variant: 'destructive'
-      })
+      toast.error('Speech recognition is not supported in your browser.')
       return
     }
 
@@ -76,11 +74,7 @@ export function VoiceAssistantPanel() {
     recognition.onerror = (event: any) => {
       console.error('Speech recognition error:', event.error)
       setIsListening(false)
-      toast({
-        title: 'Error',
-        description: 'Failed to process voice command',
-        variant: 'destructive'
-      })
+      toast.error('Failed to process voice command')
     }
 
     recognition.onend = () => {
@@ -101,22 +95,35 @@ export function VoiceAssistantPanel() {
   const processVoiceCommand = async (text: string) => {
     setIsLoading(true)
     try {
-      const token = localStorage.getItem('token')
-      const response = await fetch(`${API_URL}/api/voice/command`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({ transcription: text })
-      })
+      const token = localStorage.getItem('auth_token')
+      const response = await fetch(
+        `${API_URL}/api/voice/command?transcription=${encodeURIComponent(text)}`,
+        {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${token}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ transcription: text }),
+        }
+      )
+
+      if (!response.ok) {
+        const err = await response.json().catch(() => ({}))
+        const detail = err.detail
+        const msg = Array.isArray(detail)
+          ? detail.map((d: { msg?: string }) => d.msg).filter(Boolean).join('. ')
+          : typeof detail === 'string'
+            ? detail
+            : 'Command failed'
+        throw new Error(msg)
+      }
 
       const result = await response.json()
       
-      toast({
-        title: 'Command Processed',
-        description: `Action: ${result.action} (${Math.round(result.confidence * 100)}% confidence)`
-      })
+      toast.success(
+        `Action: ${result.action} (${Math.round(result.confidence * 100)}% confidence)`
+      )
 
       // Add to history
       setHistory(prev => [{
@@ -130,11 +137,7 @@ export function VoiceAssistantPanel() {
       // Execute the action based on result.action
       executeAction(result)
     } catch (error) {
-      toast({
-        title: 'Error',
-        description: 'Failed to process command',
-        variant: 'destructive'
-      })
+      toast.error('Failed to process command')
     } finally {
       setIsLoading(false)
     }
@@ -160,7 +163,7 @@ export function VoiceAssistantPanel() {
 
   const speakText = async (text: string) => {
     try {
-      const token = localStorage.getItem('token')
+      const token = localStorage.getItem('auth_token')
       const response = await fetch(`${API_URL}/api/voice/text-to-speech`, {
         method: 'POST',
         headers: {
@@ -173,16 +176,9 @@ export function VoiceAssistantPanel() {
       const data = await response.json()
       
       // In production, play the audio
-      toast({
-        title: 'Text-to-Speech',
-        description: `Generated audio (${data.duration}s)`
-      })
+      toast.success(`Generated audio (${data.duration}s)`)
     } catch (error) {
-      toast({
-        title: 'Error',
-        description: 'Failed to generate speech',
-        variant: 'destructive'
-      })
+      toast.error('Failed to generate speech')
     }
   }
 

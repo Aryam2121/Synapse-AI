@@ -3,6 +3,7 @@
 import { useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { useAuth } from '@/contexts/AuthContext'
+import { AuthLoadingScreen } from '@/components/auth/AuthLayout'
 
 export function withAuth<P extends object>(
   Component: React.ComponentType<P>
@@ -18,11 +19,7 @@ export function withAuth<P extends object>(
     }, [isAuthenticated, isLoading, router])
 
     if (isLoading) {
-      return (
-        <div className="min-h-screen flex items-center justify-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
-        </div>
-      )
+      return <AuthLoadingScreen />
     }
 
     if (!isAuthenticated) {

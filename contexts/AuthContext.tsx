@@ -1,8 +1,15 @@
 'use client'
 
-import React, { createContext, useContext, useState, useEffect } from 'react'
+import React, { createContext, useContext, useState, useEffect, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { API_ENDPOINTS } from '@/lib/api-config'
+import {
+  AUTH_TOKEN_KEY,
+  AUTH_USER_KEY,
+  AUTH_TIMESTAMP_KEY,
+  formatApiError,
+} from '@/lib/auth'
+import { firebaseSignOut, isFirebaseConfigured, signInWithGooglePopup } from '@/lib/firebase'
 
 interface User {
   id: string
@@ -18,6 +25,7 @@ interface AuthContextType {
   token: string | null
   login: (email: string, password: string) => Promise<void>
   register: (name: string, email: string, password: string) => Promise<void>
+  loginWithGoogle: () => Promise<void>
   logout: () => void
   refreshToken: () => Promise<boolean>
   isLoading: boolean
@@ -26,39 +34,113 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined)
 
+function persistSession(accessToken: string, user: User) {
+  localStorage.setItem(AUTH_TOKEN_KEY, accessToken)
+  localStorage.setItem(AUTH_USER_KEY, JSON.stringify(user))
+  localStorage.setItem(AUTH_TIMESTAMP_KEY, Date.now().toString())
+}
+
+function clearSession() {
+  localStorage.removeItem(AUTH_TOKEN_KEY)
+  localStorage.removeItem(AUTH_USER_KEY)
+  localStorage.removeItem(AUTH_TIMESTAMP_KEY)
+}
+
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null)
   const [token, setToken] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const router = useRouter()
 
-  useEffect(() => {
-    // Check for stored token on mount
-    const storedToken = localStorage.getItem('auth_token')
-    const storedUser = localStorage.getItem('auth_user')
-
-    if (storedToken && storedUser) {
-      setToken(storedToken)
-      setUser(JSON.parse(storedUser))
+  const logout = useCallback(() => {
+    const storedToken = localStorage.getItem(AUTH_TOKEN_KEY)
+    if (storedToken) {
+      fetch(API_ENDPOINTS.LOGOUT, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${storedToken}` },
+      }).catch(() => {})
     }
-    setIsLoading(false)
+    if (isFirebaseConfigured()) {
+      firebaseSignOut().catch(() => {})
+    }
+    setUser(null)
+    setToken(null)
+    clearSession()
+    router.push('/login')
+  }, [router])
+
+  const refreshToken = useCallback(async (): Promise<boolean> => {
+    try {
+      const storedToken = localStorage.getItem(AUTH_TOKEN_KEY)
+      if (!storedToken) return false
+
+      const response = await fetch(API_ENDPOINTS.ME, {
+        headers: { Authorization: `Bearer ${storedToken}` },
+      })
+
+      if (response.ok) {
+        const userData = await response.json()
+        setUser(userData)
+        setToken(storedToken)
+        localStorage.setItem(AUTH_USER_KEY, JSON.stringify(userData))
+        return true
+      }
+
+      logout()
+      return false
+    } catch {
+      logout()
+      return false
+    }
+  }, [logout])
+
+  useEffect(() => {
+    const initAuth = async () => {
+      const storedToken = localStorage.getItem(AUTH_TOKEN_KEY)
+      if (!storedToken) {
+        setIsLoading(false)
+        return
+      }
+
+      try {
+        const response = await fetch(API_ENDPOINTS.ME, {
+          headers: { Authorization: `Bearer ${storedToken}` },
+        })
+
+        if (response.ok) {
+          const userData = await response.json()
+          setUser(userData)
+          setToken(storedToken)
+          localStorage.setItem(AUTH_USER_KEY, JSON.stringify(userData))
+        } else {
+          clearSession()
+        }
+      } catch {
+        const storedUser = localStorage.getItem(AUTH_USER_KEY)
+        if (storedUser) {
+          setToken(storedToken)
+          setUser(JSON.parse(storedUser))
+        }
+      } finally {
+        setIsLoading(false)
+      }
+    }
+
+    initAuth()
   }, [])
 
   const login = async (email: string, password: string) => {
+    const controller = new AbortController()
+    const timeoutId = setTimeout(() => controller.abort(), 30000)
+
     try {
-      // Add timeout for slow backend (Render cold start)
-      const controller = new AbortController()
-      const timeoutId = setTimeout(() => controller.abort(), 30000) // 30s timeout
-      
       const response = await fetch(API_ENDPOINTS.LOGIN, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, password }),
         signal: controller.signal,
       })
-      
+
       clearTimeout(timeoutId)
 
       if (!response.ok) {
@@ -66,137 +148,114 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         if (response.status === 401) {
           throw new Error('Incorrect email or password')
         }
-        throw new Error(error.detail || 'Login failed')
+        throw new Error(formatApiError(error.detail, 'Login failed'))
       }
 
       const data = await response.json()
-      
       setUser(data.user)
       setToken(data.token.access_token)
-      
-      // Store in localStorage with timestamp
-      localStorage.setItem('auth_token', data.token.access_token)
-      localStorage.setItem('auth_user', JSON.stringify(data.user))
-      localStorage.setItem('auth_timestamp', Date.now().toString())
-
+      persistSession(data.token.access_token, data.user)
       router.push('/dashboard')
-    } catch (error: any) {
-      if (error.name === 'AbortError') {
-        throw new Error('⏱️ Login timeout - Backend is waking up (Render cold start). Please wait 30s and try again.')
+    } catch (error: unknown) {
+      if (error instanceof Error && error.name === 'AbortError') {
+        throw new Error(
+          'Login timed out — the server may be waking up. Please wait a moment and try again.'
+        )
       }
       throw error
     }
   }
 
   const register = async (name: string, email: string, password: string) => {
+    const controller = new AbortController()
+    const timeoutId = setTimeout(() => controller.abort(), 30000)
+
     try {
-      // Add timeout for slow backend (Render cold start)
-      const controller = new AbortController()
-      const timeoutId = setTimeout(() => controller.abort(), 30000) // 30s timeout
-      
       const response = await fetch(API_ENDPOINTS.REGISTER, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ name, email, password }),
         signal: controller.signal,
       })
-      
+
       clearTimeout(timeoutId)
 
       if (!response.ok) {
-        const error = await response.json()
-        throw new Error(error.detail || 'Registration failed')
+        const error = await response.json().catch(() => ({ detail: 'Registration failed' }))
+        throw new Error(formatApiError(error.detail, 'Registration failed'))
       }
 
       const data = await response.json()
-      
       setUser(data.user)
       setToken(data.token.access_token)
-      
-      // Store in localStorage
-      localStorage.setItem('auth_token', data.token.access_token)
-      localStorage.setItem('auth_user', JSON.stringify(data.user))
-
+      persistSession(data.token.access_token, data.user)
       router.push('/dashboard')
-    } catch (error: any) {
-      if (error.name === 'AbortError') {
-        throw new Error('⏱️ Registration timeout - Backend is waking up (Render cold start). Please wait 30s and try again.')
+    } catch (error: unknown) {
+      if (error instanceof Error && error.name === 'AbortError') {
+        throw new Error(
+          'Registration timed out — the server may be waking up. Please wait a moment and try again.'
+        )
       }
       throw error
     }
   }
 
-  const refreshToken = async (): Promise<boolean> => {
-    try {
-      const storedToken = localStorage.getItem('auth_token')
-      if (!storedToken) return false
-
-      // Verify token is still valid by calling /me endpoint
-      const response = await fetch(API_ENDPOINTS.ME, {
-        headers: {
-          'Authorization': `Bearer ${storedToken}`,
-        },
-      })
-
-      if (response.ok) {
-        const userData = await response.json()
-        setUser(userData)
-        setToken(storedToken)
-        return true
-      } else {
-        // Token expired or invalid, clear it
-        logout()
-        return false
-      }
-    } catch (error) {
-      logout()
-      return false
+  const loginWithGoogle = async () => {
+    if (!isFirebaseConfigured()) {
+      throw new Error(
+        'Google sign-in is not configured. Add Firebase env vars to .env.local'
+      )
     }
+
+    const idToken = await signInWithGooglePopup()
+
+    const response = await fetch(API_ENDPOINTS.FIREBASE_AUTH, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id_token: idToken }),
+    })
+
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({ detail: 'Google sign-in failed' }))
+      throw new Error(formatApiError(error.detail, 'Google sign-in failed'))
+    }
+
+    const data = await response.json()
+    setUser(data.user)
+    setToken(data.token.access_token)
+    persistSession(data.token.access_token, data.user)
+    router.push('/dashboard')
   }
 
-  const logout = () => {
-    setUser(null)
-    setToken(null)
-    localStorage.removeItem('auth_token')
-    localStorage.removeItem('auth_user')
-    router.push('/login')
-  }
-
-  // Auto-refresh token on mount and periodically
   useEffect(() => {
+    if (!token) return
+
     const checkAuth = async () => {
-      if (token) {
-        // Check if token is too old (more than 6 days)
-        const timestamp = localStorage.getItem('auth_timestamp')
-        if (timestamp) {
-          const age = Date.now() - parseInt(timestamp)
-          const sixDays = 6 * 24 * 60 * 60 * 1000
-          
-          if (age > sixDays) {
-            // Token is about to expire, verify it
-            const valid = await refreshToken()
-            if (!valid) {
-              alert('Your session has expired. Please login again.')
-            }
-          }
+      const timestamp = localStorage.getItem(AUTH_TIMESTAMP_KEY)
+      if (!timestamp) return
+
+      const age = Date.now() - parseInt(timestamp, 10)
+      const sixDays = 6 * 24 * 60 * 60 * 1000
+
+      if (age > sixDays) {
+        const valid = await refreshToken()
+        if (!valid) {
+          router.push('/login')
         }
       }
     }
-    
+
     checkAuth()
-    
-    // Check auth every hour
     const interval = setInterval(checkAuth, 60 * 60 * 1000)
     return () => clearInterval(interval)
-  }, [token])
+  }, [token, refreshToken, router])
 
   const value = {
     user,
     token,
     login,
     register,
+    loginWithGoogle,
     logout,
     refreshToken,
     isLoading,

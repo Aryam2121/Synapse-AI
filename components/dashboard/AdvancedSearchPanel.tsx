@@ -10,7 +10,9 @@ import { ScrollArea } from '@/components/ui/scroll-area'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Search, Filter, TrendingUp, FileText, MessageSquare, Code, CheckSquare } from 'lucide-react'
 import { motion } from 'framer-motion'
-import { toast } from '@/components/ui/use-toast'
+import { toast } from 'sonner'
+import { apiFetch, parseApiError, getAuthToken } from '@/lib/panel-auth'
+import { PanelLoadError } from './PanelLoadError'
 
 interface SearchResult {
   id: string
@@ -23,13 +25,18 @@ interface SearchResult {
   timestamp: string
 }
 
-export function AdvancedSearchPanel() {
+interface AdvancedSearchPanelProps {
+  onOpenConversation?: (conversationId: string) => void
+}
+
+export function AdvancedSearchPanel({ onOpenConversation }: AdvancedSearchPanelProps) {
   const [query, setQuery] = useState('')
   const [results, setResults] = useState<SearchResult[]>([])
   const [suggestions, setSuggestions] = useState<string[]>([])
   const [isSearching, setIsSearching] = useState(false)
   const [filters, setFilters] = useState<Record<string, any>>({})
   const [activeFilters, setActiveFilters] = useState<string[]>([])
+  const [loadError, setLoadError] = useState<string | null>(null)
 
   useEffect(() => {
     if (query.length >= 2) {
@@ -39,50 +46,48 @@ export function AdvancedSearchPanel() {
 
   const fetchSuggestions = async () => {
     try {
-      const token = localStorage.getItem('token')
-      const response = await fetch(
-        `${API_URL}/api/search/suggestions?prefix=${encodeURIComponent(query)}`,
-        { headers: { 'Authorization': `Bearer ${token}` } }
+      const response = await apiFetch(
+        `/api/search/suggestions?prefix=${encodeURIComponent(query)}`
       )
-      const data = await response.json()
-      setSuggestions(data.suggestions || [])
-    } catch (error) {
-      console.error('Failed to fetch suggestions:', error)
+      if (response.ok) {
+        const data = await response.json()
+        setSuggestions(data.suggestions || [])
+      }
+    } catch {
+      /* optional */
     }
   }
 
   const performSearch = async (searchQuery: string = query) => {
     if (!searchQuery.trim()) return
 
+    if (!getAuthToken()) {
+      setLoadError('Please log in to search.')
+      return
+    }
     setIsSearching(true)
+    setLoadError(null)
     try {
-      const token = localStorage.getItem('token')
-      const response = await fetch(`${API_URL}/api/search/semantic`, {
+      const response = await apiFetch('/api/search/semantic', {
         method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           query: searchQuery,
           filters: activeFilters.length > 0 ? { types: activeFilters } : null,
-          limit: 20
-        })
+          limit: 20,
+        }),
       })
 
+      if (!response.ok) throw new Error(await parseApiError(response))
+
       const data = await response.json()
-      setResults(data.results || [])
-      
-      toast({
-        title: 'Search Complete',
-        description: `Found ${data.total} results in ${data.processing_time}s`
-      })
+      const list = data.results || []
+      setResults(list)
+      toast.success(`Found ${data.total ?? list.length} results`)
     } catch (error) {
-      toast({
-        title: 'Search Failed',
-        description: 'Failed to perform search',
-        variant: 'destructive'
-      })
+      const msg = error instanceof Error ? error.message : 'Search failed'
+      setLoadError(msg)
+      toast.error(msg)
     } finally {
       setIsSearching(false)
     }
@@ -127,7 +132,8 @@ export function AdvancedSearchPanel() {
   }
 
   return (
-    <div className="h-full p-6 space-y-6">
+    <div className="h-full p-6 space-y-6 overflow-auto">
+      {loadError && <PanelLoadError message={loadError} onRetry={() => performSearch()} />}
       <div className="flex items-center justify-between">
         <h2 className="text-3xl font-bold bg-gradient-to-r from-primary to-purple-600 bg-clip-text text-transparent">
           Advanced Search
@@ -220,8 +226,8 @@ export function AdvancedSearchPanel() {
                   <Search className="h-16 w-16 text-muted-foreground mb-4" />
                   <h3 className="text-xl font-semibold mb-2">Start Searching</h3>
                   <p className="text-muted-foreground text-center max-w-md">
-                    Use AI-powered semantic search to find anything in your workspace.
-                    Try natural language queries like "tasks due this week" or "project documentation"
+                    Search your saved chats, uploaded documents, and tasks.
+                    Try &quot;resume&quot;, a task title, or words from a past conversation.
                   </p>
                 </CardContent>
               </Card>
@@ -241,7 +247,16 @@ export function AdvancedSearchPanel() {
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ delay: idx * 0.05 }}
                 >
-                  <Card className="hover:border-primary/50 transition-colors cursor-pointer">
+                  <Card
+                    className="hover:border-primary/50 transition-colors cursor-pointer"
+                    onClick={() => {
+                      const convId = result.metadata?.conversation_id as string | undefined
+                      if (result.type === 'chat' && convId && onOpenConversation) {
+                        onOpenConversation(convId)
+                        toast.success(`Opening: ${result.title}`)
+                      }
+                    }}
+                  >
                     <CardContent className="p-4">
                       <div className="flex items-start gap-3">
                         <div className={`p-2 rounded-lg ${getTypeColor(result.type)} bg-opacity-10`}>

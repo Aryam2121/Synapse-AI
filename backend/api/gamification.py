@@ -2,7 +2,9 @@ from fastapi import APIRouter, HTTPException, Depends
 from pydantic import BaseModel
 from typing import List, Optional, Dict, Any
 from datetime import datetime, timedelta
-from .auth import get_current_active_user
+from auth.dependencies import get_current_active_user
+from auth.user_helpers import user_id
+from db.database import User
 
 router = APIRouter(prefix="/api/gamification", tags=["gamification"])
 
@@ -30,12 +32,12 @@ class Quest(BaseModel):
     completed: bool
 
 @router.get("/profile")
-async def get_gamification_profile(current_user: dict = Depends(get_current_active_user)):
+async def get_gamification_profile(current_user: User = Depends(get_current_active_user)):
     """
     Get user's gamification profile with level, XP, and stats.
     """
     return {
-        "user_id": current_user["sub"],
+        "user_id": user_id(current_user),
         "level": 12,
         "xp": 4850,
         "xp_to_next_level": 5000,
@@ -58,7 +60,7 @@ async def get_gamification_profile(current_user: dict = Depends(get_current_acti
     }
 
 @router.get("/achievements")
-async def get_achievements(current_user: dict = Depends(get_current_active_user)):
+async def get_achievements(current_user: User = Depends(get_current_active_user)):
     """
     Get all achievements with unlock status and progress.
     """
@@ -148,7 +150,7 @@ async def get_achievements(current_user: dict = Depends(get_current_active_user)
     }
 
 @router.get("/quests")
-async def get_active_quests(current_user: dict = Depends(get_current_active_user)):
+async def get_active_quests(current_user: User = Depends(get_current_active_user)):
     """
     Get active daily/weekly quests with rewards.
     """
@@ -229,7 +231,7 @@ async def get_active_quests(current_user: dict = Depends(get_current_active_user
 @router.get("/leaderboard")
 async def get_leaderboard(
     timeframe: str = "weekly",
-    current_user: dict = Depends(get_current_active_user)
+    current_user: User = Depends(get_current_active_user),
 ):
     """
     Get leaderboard rankings (daily/weekly/monthly/all-time).
@@ -270,8 +272,8 @@ async def get_leaderboard(
             },
             {
                 "rank": 7,
-                "user_id": current_user["sub"],
-                "username": "You",
+                "user_id": user_id(current_user),
+                "username": current_user.name or "You",
                 "avatar": "🎯",
                 "points": 1850,
                 "level": 12,
@@ -284,7 +286,7 @@ async def get_leaderboard(
     }
 
 @router.get("/rewards")
-async def get_available_rewards(current_user: dict = Depends(get_current_active_user)):
+async def get_available_rewards(current_user: User = Depends(get_current_active_user)):
     """
     Get rewards that can be redeemed with points.
     """
@@ -342,7 +344,7 @@ async def get_available_rewards(current_user: dict = Depends(get_current_active_
 @router.post("/rewards/{reward_id}/redeem")
 async def redeem_reward(
     reward_id: str,
-    current_user: dict = Depends(get_current_active_user)
+    current_user: User = Depends(get_current_active_user),
 ):
     """
     Redeem a reward using accumulated points.
@@ -356,7 +358,7 @@ async def redeem_reward(
     }
 
 @router.get("/challenges")
-async def get_challenges(current_user: dict = Depends(get_current_active_user)):
+async def get_challenges(current_user: User = Depends(get_current_active_user)):
     """
     Get community challenges and competitions.
     """
@@ -388,7 +390,7 @@ async def get_challenges(current_user: dict = Depends(get_current_active_user)):
     }
 
 @router.post("/claim-daily-bonus")
-async def claim_daily_bonus(current_user: dict = Depends(get_current_active_user)):
+async def claim_daily_bonus(current_user: User = Depends(get_current_active_user)):
     """
     Claim daily login bonus with streak multiplier.
     """
@@ -406,7 +408,7 @@ async def claim_daily_bonus(current_user: dict = Depends(get_current_active_user
     }
 
 @router.get("/stats/weekly")
-async def get_weekly_stats(current_user: dict = Depends(get_current_active_user)):
+async def get_weekly_stats(current_user: User = Depends(get_current_active_user)):
     """
     Get weekly gamification statistics and progress.
     """

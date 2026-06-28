@@ -8,7 +8,9 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { BarChart3, TrendingUp, PieChart, Activity, Gauge } from 'lucide-react'
 import { motion } from 'framer-motion'
-import { toast } from '@/components/ui/use-toast'
+import { toast } from 'sonner'
+import { apiFetch, parseApiError, getAuthToken } from '@/lib/panel-auth'
+import { PanelLoadError } from './PanelLoadError'
 import {
   Chart as ChartJS,
   CategoryScale,
@@ -49,38 +51,36 @@ export function VisualizationPanel() {
   const [dashboardData, setDashboardData] = useState<any>(null)
   const [kpis, setKpis] = useState<KPI[]>([])
   const [isLoading, setIsLoading] = useState(true)
+  const [loadError, setLoadError] = useState<string | null>(null)
 
   useEffect(() => {
     fetchDashboardData()
   }, [])
 
   const fetchDashboardData = async () => {
+    if (!getAuthToken()) {
+      setLoadError('Please log in to view Visualizations.')
+      setIsLoading(false)
+      return
+    }
     setIsLoading(true)
+    setLoadError(null)
     try {
-      const token = localStorage.getItem('token')
-      
       const [dashRes, kpiRes] = await Promise.all([
-        fetch(`${API_URL}/api/visualization/dashboard/overview`, {
-          headers: { 'Authorization': `Bearer ${token}` }
-        }),
-        fetch(`${API_URL}/api/visualization/metrics/summary`, {
-          headers: { 'Authorization': `Bearer ${token}` }
-        })
+        apiFetch('/api/visualization/dashboard/overview'),
+        apiFetch('/api/visualization/metrics/summary'),
       ])
 
-      const [dashData, kpiData] = await Promise.all([
-        dashRes.json(),
-        kpiRes.json()
-      ])
+      if (dashRes.ok) setDashboardData(await dashRes.json())
+      else setLoadError(await parseApiError(dashRes))
 
-      setDashboardData(dashData)
-      setKpis(kpiData.kpis || [])
-    } catch (error) {
-      toast({
-        title: 'Error',
-        description: 'Failed to load visualizations',
-        variant: 'destructive'
-      })
+      if (kpiRes.ok) {
+        const kpiData = await kpiRes.json()
+        setKpis(kpiData.kpis || [])
+      }
+    } catch {
+      setLoadError('Failed to connect to the server.')
+      toast.error('Failed to load visualizations')
     } finally {
       setIsLoading(false)
     }
@@ -166,7 +166,8 @@ export function VisualizationPanel() {
   }
 
   return (
-    <div className="h-full p-6 space-y-6">
+    <div className="h-full p-6 space-y-6 overflow-auto">
+      {loadError && <PanelLoadError message={loadError} onRetry={fetchDashboardData} />}
       <div className="flex items-center justify-between">
         <h2 className="text-3xl font-bold bg-gradient-to-r from-primary to-purple-600 bg-clip-text text-transparent">
           Data Visualization

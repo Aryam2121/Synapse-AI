@@ -1,8 +1,9 @@
-from fastapi import APIRouter, HTTPException, Depends, UploadFile, File
-from pydantic import BaseModel
+from fastapi import APIRouter, HTTPException, Depends, UploadFile, File, Query, Body
+from pydantic import BaseModel, Field
+from db.database import User
 from typing import List, Optional, Dict, Any
 from datetime import datetime
-from .auth import get_current_active_user
+from auth.dependencies import get_current_active_user
 import json
 
 router = APIRouter(prefix="/api/voice", tags=["voice"])
@@ -17,6 +18,10 @@ class VoiceCommandResponse(BaseModel):
     action: str
     parameters: Dict[str, Any]
     confidence: float
+
+class VoiceCommandRequest(BaseModel):
+    transcription: str = Field(..., min_length=1)
+
 
 class TranscriptionResponse(BaseModel):
     text: str
@@ -46,14 +51,21 @@ async def transcribe_audio(
 
 @router.post("/command", response_model=VoiceCommandResponse)
 async def process_voice_command(
-    transcription: str,
-    current_user: dict = Depends(get_current_active_user)
+    current_user: User = Depends(get_current_active_user),
+    request: VoiceCommandRequest | None = Body(None),
+    transcription: str | None = Query(None),
 ):
     """
     Parse natural language voice command and extract intent.
-    Uses AI to understand user intent and extract parameters.
+    Accepts JSON body {"transcription": "..."} or query ?transcription=...
     """
-    # AI-powered intent recognition
+    text = (request.transcription if request else None) or transcription
+    if not text or not text.strip():
+        raise HTTPException(
+            status_code=422,
+            detail="transcription is required in JSON body or query parameter",
+        )
+    transcription = text.strip()
     text_lower = transcription.lower()
     
     # Pattern matching for common commands

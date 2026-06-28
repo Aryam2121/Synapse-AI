@@ -10,7 +10,8 @@ import { ScrollArea } from '@/components/ui/scroll-area'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Code, Sparkles, CheckCircle, AlertTriangle, Lightbulb, RefreshCw } from 'lucide-react'
 import { motion } from 'framer-motion'
-import { toast } from '@/components/ui/use-toast'
+import { toast } from 'sonner'
+import { apiFetch, parseApiError, getAuthToken } from '@/lib/panel-auth'
 
 export function CodeAssistantPanel() {
   const [code, setCode] = useState('')
@@ -22,39 +23,29 @@ export function CodeAssistantPanel() {
 
   const analyzeCode = async () => {
     if (!code.trim()) {
-      toast({
-        title: 'Error',
-        description: 'Please enter code to analyze',
-        variant: 'destructive'
-      })
+      toast.error('Please enter code to analyze')
       return
     }
 
+    if (!getAuthToken()) {
+      toast.error('Please log in to use Code Assistant')
+      return
+    }
     setIsAnalyzing(true)
     try {
-      const token = localStorage.getItem('token')
-      const response = await fetch(`${API_URL}/api/code/analyze`, {
+      const response = await apiFetch('/api/code/analyze', {
         method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({ code, language })
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ code, language }),
       })
+
+      if (!response.ok) throw new Error(await parseApiError(response))
 
       const data = await response.json()
       setAnalysis(data)
-      
-      toast({
-        title: 'Analysis Complete',
-        description: `Found ${data.issues.length} issues`
-      })
+      toast.success(`Found ${(data.issues || []).length} issues`)
     } catch (error) {
-      toast({
-        title: 'Error',
-        description: 'Failed to analyze code',
-        variant: 'destructive'
-      })
+      toast.error(error instanceof Error ? error.message : 'Failed to analyze code')
     } finally {
       setIsAnalyzing(false)
     }
@@ -62,38 +53,28 @@ export function CodeAssistantPanel() {
 
   const generateCode = async () => {
     if (!prompt.trim()) {
-      toast({
-        title: 'Error',
-        description: 'Please enter a description',
-        variant: 'destructive'
-      })
+      toast.error('Please enter a description')
       return
     }
 
+    if (!getAuthToken()) {
+      toast.error('Please log in to use Code Assistant')
+      return
+    }
     try {
-      const token = localStorage.getItem('token')
-      const response = await fetch(`${API_URL}/api/code/generate`, {
+      const response = await apiFetch('/api/code/generate', {
         method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({ prompt, language })
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ prompt, language }),
       })
+
+      if (!response.ok) throw new Error(await parseApiError(response))
 
       const data = await response.json()
       setGeneratedCode(data.code)
-      
-      toast({
-        title: 'Code Generated!',
-        description: data.explanation
-      })
+      toast.success(data.explanation || 'Code generated')
     } catch (error) {
-      toast({
-        title: 'Error',
-        description: 'Failed to generate code',
-        variant: 'destructive'
-      })
+      toast.error(error instanceof Error ? error.message : 'Failed to generate code')
     }
   }
 
@@ -320,7 +301,7 @@ export function CodeAssistantPanel() {
                       variant="outline"
                       onClick={() => {
                         navigator.clipboard.writeText(generatedCode)
-                        toast({ title: 'Copied to clipboard!' })
+                        toast.success('Copied to clipboard!')
                       }}
                     >
                       Copy

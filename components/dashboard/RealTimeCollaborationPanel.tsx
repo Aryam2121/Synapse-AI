@@ -10,7 +10,8 @@ import { ScrollArea } from '@/components/ui/scroll-area'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { Users, Circle, MessageCircle, MousePointer, Edit, Eye } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { toast } from '@/components/ui/use-toast'
+import { toast } from 'sonner'
+import { apiFetch, parseApiError, getAuthToken } from '@/lib/panel-auth'
 
 interface Participant {
   user_id: string
@@ -40,86 +41,92 @@ export function RealTimeCollaborationPanel() {
   const editorRef = useRef<HTMLTextAreaElement>(null)
 
   const createSession = async () => {
+    if (!getAuthToken()) {
+      toast.error('Please log in to start collaboration')
+      return
+    }
     try {
-      const token = localStorage.getItem('token')
-      const response = await fetch(`${API_URL}/api/realtime/sessions/create`, {
+      const response = await apiFetch('/api/realtime/sessions/create', {
         method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           session_name: 'Collaboration Session',
-          session_type: 'document'
-        })
+          session_type: 'document',
+        }),
       })
+
+      if (!response.ok) throw new Error(await parseApiError(response))
 
       const data = await response.json()
       setSessionId(data.session_id)
       connectWebSocket(data.session_id)
-      
-      toast({
-        title: 'Session Created!',
-        description: `Session ID: ${data.session_id}`
-      })
+      toast.success(`Session created: ${data.session_id.slice(0, 8)}...`)
     } catch (error) {
-      toast({
-        title: 'Error',
-        description: 'Failed to create session',
-        variant: 'destructive'
-      })
+      toast.error(error instanceof Error ? error.message : 'Failed to create session')
     }
   }
 
   const connectWebSocket = (sid: string) => {
-    const token = localStorage.getItem('token')
+    const token = localStorage.getItem('auth_token')
     const wsUrl = API_URL.replace('https://', 'wss://').replace('http://', 'ws://')
-    const ws = new WebSocket(`${wsUrl}/ws/${sid}?token=${token}`)
+    const ws = new WebSocket(`${wsUrl}/api/realtime/ws/${sid}?token=${token}`)
     
     ws.onopen = () => {
       setIsConnected(true)
-      toast({ title: 'Connected to session' })
+      toast.success('Connected to session')
     }
 
     ws.onmessage = (event) => {
-      const data = JSON.parse(event.data)
-      
-      switch (data.type) {
-        case 'user_joined':
-        case 'user_left':
-          fetchParticipants()
-          setMessages(prev => [...prev, {
-            user_id: data.user_id,
-            username: data.username,
-            message: `${data.username} ${data.type === 'user_joined' ? 'joined' : 'left'} the session`,
-            timestamp: new Date().toISOString(),
-            type: 'system'
-          }])
-          break
-        
-        case 'text_edit':
-          setEditorContent(data.content)
-          break
-        
-        case 'cursor_move':
-          updateCursor(data.user_id, data.position)
-          break
-        
-        case 'comment':
-          setMessages(prev => [...prev, {
-            user_id: data.user_id,
-            username: data.username,
-            message: data.text,
-            timestamp: data.timestamp,
-            type: 'comment'
-          }])
-          break
+      try {
+        const data = JSON.parse(event.data)
+        const userLabel = data.username || `User ${(data.user_id || '').slice(-6)}`
+
+        switch (data.type) {
+          case 'user_joined':
+          case 'user_left':
+            fetchParticipants()
+            setMessages(prev => [...prev, {
+              user_id: data.user_id,
+              username: userLabel,
+              message: `${userLabel} ${data.type === 'user_joined' ? 'joined' : 'left'} the session`,
+              timestamp: data.timestamp || new Date().toISOString(),
+              type: 'system'
+            }])
+            break
+
+          case 'content_update':
+          case 'text_edit':
+            if (data.content !== undefined) {
+              setEditorContent(data.content)
+            }
+            break
+
+          case 'cursor_update':
+          case 'cursor_move':
+            if (data.user_id && data.position) {
+              updateCursor(data.user_id, data.position)
+            }
+            break
+
+          case 'new_comment':
+          case 'comment':
+            setMessages(prev => [...prev, {
+              user_id: data.user_id,
+              username: userLabel,
+              message: data.comment || data.text || '',
+              timestamp: data.timestamp || new Date().toISOString(),
+              type: 'comment'
+            }])
+            break
+        }
+      } catch (err) {
+        console.error('WebSocket message error:', err)
       }
     }
 
     ws.onclose = () => {
       setIsConnected(false)
-      toast({ title: 'Disconnected from session' })
+      toast.info('Disconnected from session')
     }
 
     wsRef.current = ws
@@ -129,15 +136,12 @@ export function RealTimeCollaborationPanel() {
     if (!sessionId) return
     
     try {
-      const token = localStorage.getItem('token')
-      const response = await fetch(`${API_URL}/api/realtime/sessions/${sessionId}/participants`, {
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
-      })
+      const response = await apiFetch(`/api/realtime/sessions/${sessionId}/participants`)
 
-      const data = await response.json()
-      setParticipants(data.participants || [])
+      if (response.ok) {
+        const data = await response.json()
+        setParticipants(data.participants || [])
+      }
     } catch (error) {
       console.error('Failed to fetch participants:', error)
     }

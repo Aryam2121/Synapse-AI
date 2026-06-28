@@ -10,7 +10,9 @@ import { ScrollArea } from '@/components/ui/scroll-area'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Trophy, Star, Target, Zap, Award, TrendingUp, Gift, Users } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { toast } from '@/components/ui/use-toast'
+import { toast } from 'sonner'
+import { apiFetch, parseApiError, getAuthToken } from '@/lib/panel-auth'
+import { PanelLoadError } from './PanelLoadError'
 
 interface Achievement {
   id: string
@@ -43,53 +45,48 @@ export function GamificationPanel() {
   const [leaderboard, setLeaderboard] = useState<any[]>([])
   const [rewards, setRewards] = useState<any[]>([])
   const [isLoading, setIsLoading] = useState(true)
+  const [loadError, setLoadError] = useState<string | null>(null)
 
   useEffect(() => {
     fetchGamificationData()
   }, [])
 
   const fetchGamificationData = async () => {
+    if (!getAuthToken()) {
+      setLoadError('Please log in to use Gamification.')
+      setIsLoading(false)
+      return
+    }
     setIsLoading(true)
+    setLoadError(null)
     try {
-      const token = localStorage.getItem('token')
-      
       const [profileRes, achievementsRes, questsRes, leaderboardRes, rewardsRes] = await Promise.all([
-        fetch(`${API_URL}/api/gamification/profile`, {
-          headers: { Authorization: `Bearer ${token}` },
-        }),
-        fetch(`${API_URL}/api/gamification/achievements`, {
-          headers: { Authorization: `Bearer ${token}` },
-        }),
-        fetch(`${API_URL}/api/gamification/quests`, {
-          headers: { Authorization: `Bearer ${token}` },
-        }),
-        fetch(`${API_URL}/api/gamification/leaderboard?timeframe=weekly`, {
-          headers: { Authorization: `Bearer ${token}` },
-        }),
-        fetch(`${API_URL}/api/gamification/rewards`, {
-          headers: { Authorization: `Bearer ${token}` },
-        }),
+        apiFetch('/api/gamification/profile'),
+        apiFetch('/api/gamification/achievements'),
+        apiFetch('/api/gamification/quests'),
+        apiFetch('/api/gamification/leaderboard?timeframe=weekly'),
+        apiFetch('/api/gamification/rewards'),
       ])
 
-      const [profileData, achievementsData, questsData, leaderboardData, rewardsData] = await Promise.all([
-        profileRes.json(),
-        achievementsRes.json(),
-        questsRes.json(),
-        leaderboardRes.json(),
-        rewardsRes.json()
-      ])
+      if (profileRes.ok) setProfile(await profileRes.json())
+      else setLoadError(await parseApiError(profileRes))
 
-      setProfile(profileData)
-      setAchievements(achievementsData.achievements || [])
-      setQuests(questsData)
-      setLeaderboard(leaderboardData.leaderboard || [])
-      setRewards(rewardsData.rewards || [])
-    } catch (error) {
-      toast({
-        title: 'Error',
-        description: 'Failed to load gamification data',
-        variant: 'destructive'
-      })
+      if (achievementsRes.ok) {
+        const achievementsData = await achievementsRes.json()
+        setAchievements(achievementsData.achievements || [])
+      }
+      if (questsRes.ok) setQuests(await questsRes.json())
+      if (leaderboardRes.ok) {
+        const leaderboardData = await leaderboardRes.json()
+        setLeaderboard(leaderboardData.leaderboard || [])
+      }
+      if (rewardsRes.ok) {
+        const rewardsData = await rewardsRes.json()
+        setRewards(rewardsData.rewards || [])
+      }
+    } catch {
+      setLoadError('Failed to connect to the server. Is the backend running on port 8000?')
+      toast.error('Failed to load gamification data')
     } finally {
       setIsLoading(false)
     }
@@ -97,51 +94,39 @@ export function GamificationPanel() {
 
   const claimDailyBonus = async () => {
     try {
-      const token = localStorage.getItem('token')
+      const token = localStorage.getItem('auth_token')
       const response = await fetch(`${API_URL}/api/gamification/claim-daily-bonus`, {
         method: 'POST',
         headers: { 'Authorization': `Bearer ${token}` }
       })
-      
+
+      if (!response.ok) throw new Error(await parseApiError(response))
       const data = await response.json()
-      
-      toast({
-        title: '🎁 Daily Bonus Claimed!',
-        description: data.message
-      })
+
+      toast.success(data.message || 'Daily bonus claimed!')
       
       fetchGamificationData()
     } catch (error) {
-      toast({
-        title: 'Error',
-        description: 'Failed to claim bonus',
-        variant: 'destructive'
-      })
+      toast.error('Failed to claim bonus')
     }
   }
 
   const redeemReward = async (rewardId: string) => {
     try {
-      const token = localStorage.getItem('token')
+      const token = localStorage.getItem('auth_token')
       const response = await fetch(`${API_URL}/api/gamification/rewards/${rewardId}/redeem`, {
         method: 'POST',
         headers: { 'Authorization': `Bearer ${token}` }
       })
-      
+
+      if (!response.ok) throw new Error(await parseApiError(response))
       const data = await response.json()
-      
-      toast({
-        title: 'Reward Unlocked! 🎉',
-        description: data.message
-      })
+
+      toast.success(data.message || 'Reward unlocked!')
       
       fetchGamificationData()
     } catch (error) {
-      toast({
-        title: 'Error',
-        description: 'Failed to redeem reward',
-        variant: 'destructive'
-      })
+      toast.error('Failed to redeem reward')
     }
   }
 
@@ -164,7 +149,8 @@ export function GamificationPanel() {
   }
 
   return (
-    <div className="h-full p-6 space-y-6">
+    <div className="h-full p-6 space-y-6 overflow-auto">
+      {loadError && <PanelLoadError message={loadError} onRetry={fetchGamificationData} />}
       <div className="flex items-center justify-between">
         <h2 className="text-3xl font-bold bg-gradient-to-r from-primary to-purple-600 bg-clip-text text-transparent">
           Gamification
