@@ -73,10 +73,22 @@ async def startup_event():
                     "User must be postgres.vmnwupaexrzpnygksvtn (with project ref), "
                     "host must be aws-0-REGION.pooler.supabase.com:5432."
                 )
+            elif "password authentication failed" in err:
+                logger.error(
+                    "Database password rejected. Use your Supabase database password "
+                    "(Project Settings → Database → reset password if unsure). "
+                    "Do not use the placeholder word 'password'. "
+                    "If the password has special characters (@ # : / %), URL-encode them in DATABASE_URL."
+                )
             elif "db." in DATABASE_URL and ".supabase.co" in DATABASE_URL:
                 logger.error(
                     "Do not use Supabase Direct (db.*.supabase.co) on Render. "
                     "Use Session pooler URI from Supabase → Database → Connection string."
+                )
+            elif "relation" in err and "does not exist" in err:
+                logger.error(
+                    "Database tables are missing. Redeploy after pushing the latest code, "
+                    "or run backend/db/schema.sql in Supabase → SQL Editor."
                 )
             else:
                 logger.error(
