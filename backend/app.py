@@ -13,17 +13,10 @@ import asyncio
 from datetime import datetime
 from functools import lru_cache
 
-# Install uvloop for faster async performance
-try:
-    import uvloop
-    uvloop.install()
-except ImportError:
-    pass
-
 # Import our modules
 from agents.router import AgentRouter
 from agents.code_agent import CodeAgent
-from db.database import get_db, init_db, User
+from db.database import get_db, init_db, User, describe_database_target, DATABASE_URL
 from sqlalchemy.ext.asyncio import AsyncSession
 from utils.logger import logger
 from auth.routes import router as auth_router
@@ -62,13 +55,20 @@ async def startup_event():
         from utils.env_loader import get_groq_api_key
         logger.info("Starting Synapse AI Backend...")
         logger.info("Groq API key: %s", "configured" if get_groq_api_key() else "MISSING")
-        logger.info("Initializing database...")
+        logger.info("Initializing database (%s)...", describe_database_target(DATABASE_URL))
         await init_db()
         logger.info("Database initialized successfully")
         logger.info("Backend is ready to accept requests")
     except Exception as e:
-        logger.error(f"Startup error: {e}")
-        logger.error("Backend will still run but some features may not work")
+        logger.error("Startup error: %s", e)
+        if "postgresql" in DATABASE_URL or "postgres" in DATABASE_URL:
+            logger.error(
+                "PostgreSQL connection failed. In Render → Environment, set DATABASE_URL "
+                "to the Internal Database URL from your Render Postgres service "
+                "(Dashboard → your database → Connect → Internal). "
+                "Or remove DATABASE_URL to use SQLite (data resets on redeploy)."
+            )
+        logger.error("Backend will still run but auth and data features may not work")
         # Don't crash the app, let it start anyway
 
 # Include authentication routes

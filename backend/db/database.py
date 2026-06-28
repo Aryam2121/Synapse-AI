@@ -2,17 +2,51 @@ from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy import Column, String, DateTime, Integer, Text, Boolean, text
+from sqlalchemy.engine import make_url
 import os
 from datetime import datetime
 
-# Database URL
-DATABASE_URL = os.getenv("DATABASE_URL", "sqlite+aiosqlite:///./universal_ai.db")
 
-# Convert PostgreSQL URL to use async driver
-if DATABASE_URL.startswith("postgresql://") or DATABASE_URL.startswith("postgres://"):
-    # Replace postgresql:// with postgresql+asyncpg:// for async support
-    DATABASE_URL = DATABASE_URL.replace("postgresql://", "postgresql+asyncpg://")
-    DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql+asyncpg://")
+def _normalize_database_url(raw: str | None) -> str:
+    """Strip quotes/whitespace from env vars (common Render dashboard mistake)."""
+    url = (raw or "").strip().strip('"').strip("'")
+    return url or "sqlite+aiosqlite:///./universal_ai.db"
+
+
+def _to_async_postgres_url(url: str) -> str:
+    if url.startswith("postgresql+asyncpg://"):
+        return url
+    if url.startswith("postgresql://"):
+        return url.replace("postgresql://", "postgresql+asyncpg://", 1)
+    if url.startswith("postgres://"):
+        return url.replace("postgres://", "postgresql+asyncpg://", 1)
+    return url
+
+
+def _postgres_connect_args(url: str) -> dict:
+    # Render and most hosted Postgres providers require TLS.
+    return {"command_timeout": 10, "ssl": "require"}
+
+
+def describe_database_target(url: str) -> str:
+    """Human-readable DB target for logs (no credentials)."""
+    try:
+        parsed = make_url(url)
+        driver = parsed.drivername or "unknown"
+        host = parsed.host or "(file)"
+        database = parsed.database or "default"
+        return f"{driver} @ {host}/{database}"
+    except Exception:
+        return "unknown"
+
+
+# Database URL
+DATABASE_URL = _normalize_database_url(os.getenv("DATABASE_URL"))
+if DATABASE_URL.startswith(("postgresql://", "postgres://", "postgresql+asyncpg://")):
+    DATABASE_URL = _to_async_postgres_url(DATABASE_URL)
+
+_is_sqlite = "sqlite" in DATABASE_URL
+_connect_args = {"timeout": 10} if _is_sqlite else _postgres_connect_args(DATABASE_URL)
 
 # Create async engine with optimized connection pooling
 engine = create_async_engine(
@@ -23,7 +57,7 @@ engine = create_async_engine(
     pool_pre_ping=True,  # Verify connections before use
     pool_recycle=1800,  # Recycle connections after 30 min
     pool_timeout=10,  # Faster timeout for connection acquisition
-    connect_args={"timeout": 10} if "sqlite" in DATABASE_URL else {"command_timeout": 10}
+    connect_args=_connect_args,
 )
 
 # Create session factory
