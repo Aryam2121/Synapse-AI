@@ -45,6 +45,9 @@ asyncpg>=0.30.0
 redis==5.0.1
 hiredis==2.3.2
 
+# Auth (Firebase / Google sign-in)
+google-auth>=2.29.0
+
 # Utils
 python-multipart==0.0.6
 python-jose[cryptography]==3.3.0
